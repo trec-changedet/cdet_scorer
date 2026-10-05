@@ -1,7 +1,7 @@
 import unittest
 from functools import partial
 
-from cdet_scorer.measures import RecipRankPrime, RBPPrime, APPrime, NDCGPrime
+from cdet_scorer.measures import RecipRankPrime, RBPPrime, APPrime, NDCGPrime, RelLevel
 
 class RecipRankPrimeTest(unittest.TestCase):
     def test_rr_prime(self):
@@ -18,7 +18,7 @@ class RecipRankPrimeTest(unittest.TestCase):
                    ('011', 3, partial(self.assertEqual, 0.5)),
                    ('01001', 3, partial(self.assertEqual, 0.5))]
         for (r, nr, check) in triples:
-            gains = [int(x) for x in list(r)]
+            gains = [RelLevel(int(x)) for x in list(r)]
             value = RecipRankPrime._recip_rank_prime(gains, nr)
             print(r, nr, '::', value)
             check(value)
@@ -39,7 +39,7 @@ class RBPPrimeTest(unittest.TestCase):
                    ('011', [1,1,1], partial(self.assertAlmostEqual, 0.458, places=3)),
                    ('01001', [1,1,1], partial(self.assertAlmostEqual, 0.302, places=3))]
         for (r, all_gains, check) in triples:
-            gains = [int(x) for x in list(r)]
+            gains = [RelLevel(int(x)) for x in list(r)]
             value = RBPPrime._rbp_prime(gains, 0.5, all_gains)
             print(r, all_gains, '::', value)
             check(value)
@@ -59,7 +59,7 @@ class APPrimeTest(unittest.TestCase):
                    ('011', 3, partial(self.assertAlmostEqual, 0.403, places=3)),
                    ('01001', 3, partial(self.assertAlmostEqual, 0.299, places=3))]
         for (r, num_rel, check) in triples:
-            gains = [int(x) for x in list(r)]
+            gains = [RelLevel(int(x)) for x in list(r)]
             value = APPrime._ap_prime(gains, num_rel)
             print(r, num_rel, '::', value)
             check(value)
@@ -72,7 +72,8 @@ class NDCGTest(unittest.TestCase):
                    ('351', [5,3,1], partial(self.assertAlmostEqual, 0.90, places=2)),
                    ('153', [5,3,1], partial(self.assertAlmostEqual, 0.76, places=2))]
         for (r, all_gains, check) in triples:
-            gains = [int(x) for x in list(r)]
+            gains = [RelLevel(int(x)) for x in list(r)]
+            all_gains = [RelLevel(x) for x in all_gains]
             value = NDCGPrime._ndcg(gains, all_gains)
             print(r, all_gains, '::', value)
             check(value)
@@ -92,8 +93,8 @@ class NDCGPrimeTest(unittest.TestCase):
                    ('011', 3, partial(self.assertAlmostEqual, 0.554, places=3)),
                    ('01001', 3, partial(self.assertAlmostEqual, 0.490, places=3))]
         for (r, num_rel, check) in triples:
-            gains = [int(x) for x in list(r)]
-            all_gains = [1 for x in range(num_rel)]
+            gains = [RelLevel(int(x)) for x in list(r)]
+            all_gains = [RelLevel.AWARENESS for x in range(num_rel)]
             value = NDCGPrime._ndcg_prime(gains, all_gains)
             print(r, all_gains, '::', value)
             check(value)

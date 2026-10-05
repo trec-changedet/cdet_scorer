@@ -2,7 +2,7 @@
 
 # DOI: http://dx.doi.org/10.1145/2911451.2914737
 from math import log2
-from typing import override, Any
+from typing import override, Final
 from enum import IntEnum
 from collections import defaultdict
 import logging
@@ -11,12 +11,21 @@ type Numeric = int | float
 
 log = logging.getLogger(__name__)
 
-class RelLevel(IntEnum):
-    UNJUDGED = -1
-    NOT_RELEVANT = 0
-    AWARENESS = 1
-    ASSESSMENT = 5
-    ACTION = 20
+class RelLevel(float):
+    '''I wanted an enum, but I also wanted to allow arbitrary gain values 
+    such as from r_t(). Pyright is not amused.
+    '''
+    UNJUDGED: Final['UNJUDGED']         # type: ignore
+    NOT_RELEVANT: Final['NOT_RELEVANT'] # type: ignore
+    AWARENESS: Final['AWARENESS']       # type: ignore
+    ASSESSMENT: Final['ASSESSMENT']     # type: ignore
+    ACTION: Final['ACTION']             # type: ignore
+
+RelLevel.UNJUDGED = RelLevel(-1.0)      # type: ignore
+RelLevel.NOT_RELEVANT = RelLevel(0.0)   # type: ignore
+RelLevel.AWARENESS = RelLevel(1.0)      # type: ignore
+RelLevel.ASSESSMENT = RelLevel(5.0)     # type: ignore
+RelLevel.ACTION = RelLevel(20.0)        # type: ignore
 
 def str_to_gain(s: str) -> RelLevel:
     if s == 'not_relevant':
@@ -52,7 +61,7 @@ class Qrels:
 
     def get_qid(self, topic, qid) -> dict[str, RelLevel]:
         if topic in self.qrels and qid in self.qrels[topic]:
-            return self.qrels[topic][docid]
+            return self.qrels[topic][qid]
         else:
             log.warning(f'No {topic} or {qid} in qrels')
             return {}
@@ -83,16 +92,16 @@ class Measure:
     def pretty_mean(self, value) -> str:
         return "all " + self.label + " " + self.formatstr.format(value)
 
-def r_t(gain_ranking: list[int], all_gains: list[int]) -> float:
+def r_t(gain_ranking: list[RelLevel], all_gains: list[RelLevel]) -> RelLevel:
     '''r_t, a formula in the paper, is the gain value associated with the terminal document.
     '''
     if len(all_gains) == 0:
-        return 1.0
+        return RelLevel.AWARENESS
     else:
         all_gains = sorted(all_gains, reverse=True)
         R = sum(all_gains)
         sum_r_i = sum(gain_ranking)
-        return sum_r_i / R
+        return RelLevel(sum_r_i / R)
 
 
 class RecipRankPrime(Measure):
@@ -101,7 +110,7 @@ class RecipRankPrime(Measure):
         self.label = "recip_rank'"
 
     @classmethod
-    def _recip_rank(cls, gains: list[int]) -> float:
+    def _recip_rank(cls, gains: list[RelLevel]) -> float:
         first_rel = None
         for i in range(len(gains)):
             if gains[i] > 0:
@@ -114,11 +123,11 @@ class RecipRankPrime(Measure):
             return 0.0
 
     @classmethod
-    def _recip_rank_prime(cls, gains: list[int], num_rel: int) -> float:
+    def _recip_rank_prime(cls, gains: list[RelLevel], num_rel: int) -> float:
         if num_rel > 0:
             return RecipRankPrime._recip_rank(gains)
         elif num_rel == 0:
-            return RecipRankPrime._recip_rank(gains + [1])
+            return RecipRankPrime._recip_rank(gains + [RelLevel.AWARENESS])
         else:
             raise ValueError('num_rel must be non-negative')
 
@@ -136,7 +145,10 @@ class RBPPrime(Measure):
         self.p = p
 
     @classmethod
-    def _rbp_prime(cls, gain_ranking: list[int], p: float, all_gains: list[int]) -> float:
+    def _rbp_prime(cls, 
+                   gain_ranking: list[RelLevel], 
+                   p: float, 
+                   all_gains: list[RelLevel]) -> float:
         score = 0.0
         index = 0
         while index < len(gain_ranking):
@@ -161,8 +173,8 @@ class APPrime(Measure):
         super().__init__()
 
     @classmethod
-    def _ap_prime(cls, gain_ranking: list[int], num_rel: int):
-        all_gains = [1 for x in range(num_rel)]
+    def _ap_prime(cls, gain_ranking: list[RelLevel], num_rel: int):
+        all_gains = [RelLevel.AWARENESS for x in range(num_rel)]
         rt = r_t(gain_ranking, all_gains)
 
         gain_ranking.append(rt)
@@ -189,7 +201,7 @@ class NDCGPrime(Measure):
         self.label = "ndcg'"
 
     @classmethod
-    def _ndcg(cls, gain_ranking: list[int], all_gains: list[int]):
+    def _ndcg(cls, gain_ranking: list[RelLevel], all_gains: list[RelLevel]):
         all_gains = sorted(all_gains, reverse=True)
 
         if not gain_ranking:
@@ -207,10 +219,10 @@ class NDCGPrime(Measure):
         return dcg/idcg
 
     @classmethod
-    def _ndcg_prime(cls, gain_ranking: list[int], all_gains: list[int]):
+    def _ndcg_prime(cls, gain_ranking: list[RelLevel], all_gains: list[RelLevel]):
         rt = r_t(gain_ranking, all_gains)
         gain_ranking.append(rt)
-        all_gains.append(1)
+        all_gains.append(RelLevel.AWARENESS)
         return NDCGPrime._ndcg(gain_ranking, all_gains)
 
     @override
