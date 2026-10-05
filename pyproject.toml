@@ -1,0 +1,25 @@
+[project]
+name = "cdet_scorer"
+version = "0.0.1"
+authors = [
+  { name="Ian Soboroff", email="ian.soboroff@nist.gov" }
+]
+description = "Scorer for the TREC Change Detection track"
+readme = "README.md"
+requires-python = ">3.12"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  "pydantic"
+]
+
+license.file = "LICENSE"
+
+[project.urls]
+Homepage = "https://trec-changedet.github.io"
+
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
