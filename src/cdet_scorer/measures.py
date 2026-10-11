@@ -42,43 +42,66 @@ def str_to_gain(s: str) -> RelLevel:
 def infinite_defaultdict():
     return defaultdict(infinite_defaultdict)
 
-# Assuming a qrels format like:
-# topic qid doc rel
+# Qrels format:
+# topic qid day doc rel, or
+# topic * day doc unjudged, or
+# topic * day doc not-relevant, or
+# topic * day qranking qid1,qid2,...,qidN
 class Qrels:
     def __init__(self, filename):
         self.qrels = infinite_defaultdict()
+        self.qranking = infinite_defaultdict()
+
         with open(filename) as fp:
             for line in fp:
-                topic, qid, docid, rel = line.strip().split()
-                self.qrels[topic][qid][docid] = str_to_gain(rel)
+                topic, qid, day, docid, rel = line.strip().split()
+                if docid == 'qranking':
+                    self.qranking[topic][day] = rel.split(',')
+                else:
+                    self.qrels[topic][day][qid][docid] = str_to_gain(rel)
 
-    def get(self, topic: str, qid: str, docid: str) -> RelLevel:
+    def get(self, topic: str, day: str, qid: str, docid: str) -> RelLevel:
         if topic not in self.qrels:
             log.warning(f'No topic {topic} in qrels')
             return RelLevel.UNJUDGED
-        if qid not in self.qrels[topic]:
-            log.warning(f'No question {qid} in qrels for topic {topic}')
+        if day not in self.qrels[topic]:
+            log.warning(f'No day {day} in qrels for topic {topic}')
             return RelLevel.UNJUDGED
-        if docid not in self.qrels[topic][qid]:
-            log.warning(f'No document {docid} in qrels for topic {topic}, qid {qid}')
+        if qid not in self.qrels[topic][day]:
+            log.warning(f'No question {qid} in qrels for topic {topic}, day {day}')
             return RelLevel.UNJUDGED
-        return self.qrels[topic][qid][docid]
+        if docid not in self.qrels[topic][day][qid]:
+            log.warning(f'No document {docid} in qrels for topic {topic}, day {day}, qid {qid}')
+            return RelLevel.UNJUDGED
+        return self.qrels[topic][day][qid][docid]
 
-    def get_qid(self, topic, qid) -> dict[str, RelLevel]:
+    def get_qid(self, topic: str, day: str, qid: str) -> dict[str, RelLevel]:
         if topic not in self.qrels:
             log.warning(f'No topic {topic} in qrels')
             return {}
-        if qid not in self.qrels[topic]:
-            log.warning(f'No question {qid} in qrels for topic {topic}')
+        if day not in self.qrels[topic]:
+            log.warning(f'No day {day} in qrels for topic {topic}')
             return {}
-        return self.qrels[topic][qid]
+        if qid not in self.qrels[topic][day]:
+            log.warning(f'No question {qid} in qrels for topic {topic}, day {day}')
+            return {}
+        return self.qrels[topic][day][qid]
+
+    def get_qranking(self, topic: str, day: str) -> list[str]:
+        if topic not in self.qranking:
+            log.warning(f'No topic {topic} in question rankings')
+            return []
+        if day not in self.qranking[topic]:
+            log.warning(f'No day {day} in question rankings for topic {topic}')
+            return []
+        return self.qranking[topic][day]
 
 
 def ranking_to_gains(doc_ranking: list[str], qrels: dict[str, RelLevel]):
     return [ qrels[docid] if docid in qrels else RelLevel.UNJUDGED for docid in doc_ranking ]
 
 
-class Measure:
+class DocRankingMeasure:
     def __init__(self):
         self.formatstr: str = '{:.4f}'
         self.label: str = 'measure name'
@@ -94,13 +117,16 @@ class Measure:
     def reduce(self, scores: dict[str, Numeric]) -> Numeric:
         return sum(scores.values()) / len(scores.values())
 
-    def pretty(self, topic: str, value: Numeric) -> str:
-        return topic + " " + self.label + " " + self.formatstr.format(value)
+    def pretty(self, topic: str, day: str, qid: str, value: Numeric) -> str:
+        return f"{topic} {day} {qid} {self.label} {self.formatstr.format(value)}"
 
-    def pretty_mean(self, value) -> str:
-        return "all " + self.label + " " + self.formatstr.format(value)
+    def pretty_day_mean(self, topic, day, value) -> str:
+        return f"{topic} {day} all {self.label} {self.formatstr.format(value)}"
 
-class NumRetrieved(Measure):
+    def pretty_qid_mean(self, topic, qid, value) -> str:
+        return f"{topic} all {qid} {self.label} {self.formatstr.format(value)}"
+
+class NumRetrieved(DocRankingMeasure):
     '''The number of documents retrieved above the args.depth cutoff.'''
     def __init__(self):
         super().__init__()
@@ -111,7 +137,7 @@ class NumRetrieved(Measure):
     def reduce(self, scores):
         return sum(scores.values())
 
-class NumRel(Measure):
+class NumRel(DocRankingMeasure):
     '''The number of relevant documents (rel >= args.minrel) 
     in the qrels for this topic.'''
     def __init__(self):
@@ -123,7 +149,7 @@ class NumRel(Measure):
     def reduce(self, scores):
         return sum(scores.values())
 
-class NumRelRet(Measure):
+class NumRelRet(DocRankingMeasure):
     '''The number of relevant documents (rel >= args.minrel) retrieved
     above the args.depth cutoff.'''
     def __init__(self):
@@ -135,7 +161,7 @@ class NumRelRet(Measure):
     def reduce(self, scores):
         return sum(scores.values())
 
-class Unjudged(Measure):
+class Unjudged(DocRankingMeasure):
     '''The number of unjudged documents retrieved above the args.depth cutoff.'''
     def __init__(self):
         super().__init__()
@@ -158,8 +184,7 @@ def r_t(gain_ranking: list[RelLevel], all_gains: list[RelLevel]) -> RelLevel:
         sum_r_i = sum(gain_ranking)
         return RelLevel(sum_r_i / R)
 
-
-class RecipRankPrime(Measure):
+class RecipRankPrime(DocRankingMeasure):
     def __init__(self):
         super().__init__()
         self.label = "recip_rank'"
@@ -192,8 +217,7 @@ class RecipRankPrime(Measure):
         num_rel = sum(1 for rl in qrels.values() if rl > RelLevel.NOT_RELEVANT)
         return RecipRankPrime._recip_rank_prime(gains, num_rel)
 
-
-class RBPPrime(Measure):
+class RBPPrime(DocRankingMeasure):
     def __init__(self, p=0.8):
         super().__init__()
         self.label = f"rbp'(p={p})"
@@ -219,11 +243,9 @@ class RBPPrime(Measure):
         return RBPPrime._rbp_prime(gains, self.p, all_gains)
 
 
-
 # AP_Prime is based on a graded-relevance version of AP, rather than the TREC-style
 # thresholded binary relevance version.
-
-class APPrime(Measure):
+class APPrime(DocRankingMeasure):
     def __init__(self):
         super().__init__()
 
@@ -250,7 +272,7 @@ class APPrime(Measure):
         num_rel = sum(1 for rl in qrels.values() if rl > RelLevel.NOT_RELEVANT)
         return APPrime._ap_prime(gains, num_rel)
 
-class NDCGPrime(Measure):
+class NDCGPrime(DocRankingMeasure):
     def __init__(self):
         super().__init__()
         self.label = "ndcg'"
@@ -285,4 +307,25 @@ class NDCGPrime(Measure):
         gains = ranking_to_gains(doc_ranking, qrels)
         all_gains = list(qrels.values())
         return NDCGPrime._ndcg_prime(gains, all_gains)
-    
+
+class QuestionRankingMeasure:
+    def __init__(self):
+        self.formatstr: str = '{:.4f}'
+        self.label: str = 'measure name'
+        self.print_score: bool = True
+        self.print_mean: bool = True
+
+    def __str__(self):
+        return self.label
+
+    def compute(self, question_ranking: list[str], qrelranking: list[str]) -> Numeric | None:
+        return None
+
+    def reduce(self, scores: dict[str, Numeric]) -> Numeric:
+        return sum(scores.values()) / len(scores.values())
+
+    def pretty(self, topic: str, day: str, qid: str, value: Numeric) -> str:
+        return f"{topic} {day} qranking {self.label} {self.formatstr.format(value)}"
+
+    def pretty_topic_mean(self, topic, qid, value) -> str:
+        return f"{topic} all qranking {self.label} {self.formatstr.format(value)}"
