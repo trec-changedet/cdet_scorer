@@ -53,18 +53,26 @@ class Qrels:
                 self.qrels[topic][qid][docid] = str_to_gain(rel)
 
     def get(self, topic: str, qid: str, docid: str) -> RelLevel:
-        if topic in self.qrels and qid in self.qrels[topic] and docid in self.qrels[topic][qid]:
-            return self.qrels[topic][qid][docid]
-        else:
-            log.warning(f'No {topic}, {qid}, or {docid} in qrels')
+        if topic not in self.qrels:
+            log.warning(f'No topic {topic} in qrels')
             return RelLevel.UNJUDGED
+        if qid not in self.qrels[topic]:
+            log.warning(f'No question {qid} in qrels for topic {topic}')
+            return RelLevel.UNJUDGED
+        if docid not in self.qrels[topic][qid]:
+            log.warning(f'No document {docid} in qrels for topic {topic}, qid {qid}')
+            return RelLevel.UNJUDGED
+        return self.qrels[topic][qid][docid]
 
     def get_qid(self, topic, qid) -> dict[str, RelLevel]:
-        if topic in self.qrels and qid in self.qrels[topic]:
-            return self.qrels[topic][qid]
-        else:
-            log.warning(f'No {topic} or {qid} in qrels')
+        if topic not in self.qrels:
+            log.warning(f'No topic {topic} in qrels')
             return {}
+        if qid not in self.qrels[topic]:
+            log.warning(f'No question {qid} in qrels for topic {topic}')
+            return {}
+        return self.qrels[topic][qid]
+
 
 def ranking_to_gains(doc_ranking: list[str], qrels: dict[str, RelLevel]):
     return [ qrels[docid] if docid in qrels else RelLevel.UNJUDGED for docid in doc_ranking ]

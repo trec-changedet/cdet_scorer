@@ -1,7 +1,7 @@
 from pathlib import Path
 from collections import defaultdict
 
-from cdet_scorer.measures import NDCGPrime, NumRel, NumRelRet, NumRetrieved, Qrels, Measure, RBPPrime, RecipRankPrime, RelLevel, Unjudged, str_to_gain
+from cdet_scorer.measures import Qrels, Measure, NDCGPrime, NumRel, NumRelRet, NumRetrieved, RBPPrime, RecipRankPrime, RelLevel, Unjudged, str_to_gain
 from cdet_scorer.api_types import RunMetadata, TopicResults
 
 class EvalJig:
