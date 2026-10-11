@@ -92,6 +92,53 @@ class Measure:
     def pretty_mean(self, value) -> str:
         return "all " + self.label + " " + self.formatstr.format(value)
 
+class NumRetrieved(Measure):
+    '''The number of documents retrieved above the args.depth cutoff.'''
+    def __init__(self):
+        super().__init__()
+        self.formatstr = '{:d}'
+        self.label = 'num_ret'
+    def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> int:
+        return len(doc_ranking)
+    def reduce(self, scores):
+        return sum(scores.values())
+
+class NumRel(Measure):
+    '''The number of relevant documents (rel >= args.minrel) 
+    in the qrels for this topic.'''
+    def __init__(self):
+        super().__init__()
+        self.formatstr = '{:d}'
+        self.label = 'num_rel'
+    def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> int:
+        return sum(1 for rel in qrels.values() if rel >= RelLevel.AWARENESS)
+    def reduce(self, scores):
+        return sum(scores.values())
+
+class NumRelRet(Measure):
+    '''The number of relevant documents (rel >= args.minrel) retrieved
+    above the args.depth cutoff.'''
+    def __init__(self):
+        super().__init__()
+        self.formatstr = '{:d}'
+        self.label = 'num_rel_ret'
+    def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> int:
+        return sum(1 for docid in doc_ranking if docid in qrels and qrels[docid] >= RelLevel.AWARENESS)
+    def reduce(self, scores):
+        return sum(scores.values())
+
+class Unjudged(Measure):
+    '''The number of unjudged documents retrieved above the args.depth cutoff.'''
+    def __init__(self):
+        super().__init__()
+        self.formatstr = '{:d}'
+        self.label = 'unjudged'
+    def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> int:
+        return sum(1 for docid in doc_ranking if docid not in qrels)
+    def reduce(self, scores):
+        return sum(scores.values())
+
+
 def r_t(gain_ranking: list[RelLevel], all_gains: list[RelLevel]) -> RelLevel:
     '''r_t, a formula in the paper, is the gain value associated with the terminal document.
     '''
