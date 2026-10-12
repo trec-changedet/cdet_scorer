@@ -92,6 +92,15 @@ class TopicEval:
             if op_name in day_eval.qranking_scores
         }
 
+    def all_scores_for(self, op_name: str) -> dict[tuple[str, str], Numeric]:
+        """Returns {(day, qid): score} across all days and questions in this topic."""
+        return {
+            (day, qid): q_eval.scores[op_name]
+            for day, day_eval in self.days.items()
+            for qid, q_eval in day_eval.questions.items()
+            if op_name in q_eval.scores
+        }
+
 
 class EvalJig:
     def __init__(self, min_rel_level: RelLevel = RelLevel.AWARENESS, max_depth: int | None = 100):
@@ -211,6 +220,17 @@ class EvalJig:
                     if scores:
                         mean_val = op.reduce(scores)
                         print(op.pretty_qid_mean(topic, qid, mean_val))
+
+    def print_topic_means(self):
+        for topic in sorted(self.topics):
+            topic_eval = self.topics[topic]
+            for op in self.doc_ops:
+                if not op.print_mean:
+                    continue
+                scores = topic_eval.all_scores_for(str(op))
+                if scores:
+                    mean_val = op.reduce(scores)
+                    print(op.pretty_topic_mean(topic, mean_val))
 
     def print_qranking_scores(self):
         for topic in sorted(self.topics):
@@ -343,6 +363,7 @@ def main():
     jig.print_scores()
     jig.print_day_means()
     jig.print_qid_means()
+    jig.print_topic_means()
     jig.print_qranking_scores()
     jig.print_qranking_means()
 

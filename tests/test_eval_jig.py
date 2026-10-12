@@ -31,6 +31,8 @@ class EvalJigTest(unittest.TestCase):
         self.assertEqual(t.all_qids, {'q_1'})
         day_scores = t.day_scores_for('q_1', 'num_ret')
         self.assertEqual(day_scores, {'2026-01-01': 10, '2026-01-02': 15})
+        all_scores = t.all_scores_for('num_ret')
+        self.assertEqual(all_scores, {('2026-01-01', 'q_1'): 10, ('2026-01-02', 'q_1'): 15})
 
     def test_eval_jig_computation_and_output(self):
         jig = EvalJig(min_rel_level=RelLevel.AWARENESS, max_depth=10)
@@ -78,6 +80,15 @@ class EvalJigTest(unittest.TestCase):
         self.assertIn('cd2026_001 all q_1 num_rel_ret 2', qid_lines)
         self.assertIn('cd2026_001 all q_2 num_ret 2', qid_lines)
         self.assertIn('cd2026_001 all q_2 num_rel_ret 1', qid_lines)
+
+        # Check stdout of print_topic_means
+        out = io.StringIO()
+        with redirect_stdout(out):
+            jig.print_topic_means()
+        topic_lines = [line.strip() for line in out.getvalue().strip().split('\n')]
+        # num_ret reduce for cd2026_001 across all days and questions (3 + 2 + 1) = 6
+        self.assertIn('cd2026_001 all all num_ret 6', topic_lines)
+        self.assertIn('cd2026_001 all all num_rel_ret 3', topic_lines)
 
     def test_question_ranking_evaluation(self):
         jig = EvalJig()

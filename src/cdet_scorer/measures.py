@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import json
 from math import log2
 import sys
-from typing import override, Final
+from typing import Any, override, Final
 from enum import IntEnum
 from collections import Counter, defaultdict
 import logging
@@ -138,7 +138,7 @@ class DocRankingMeasure:
     def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> Numeric | None:
         return None
 
-    def reduce(self, scores: dict[str, Numeric]) -> Numeric:
+    def reduce(self, scores: dict[Any, Numeric]) -> Numeric:
         return sum(scores.values()) / len(scores.values())
 
     def pretty(self, topic: str, day: str, qid: str, value: Numeric) -> str:
@@ -149,6 +149,9 @@ class DocRankingMeasure:
 
     def pretty_qid_mean(self, topic, qid, value) -> str:
         return f"{topic} all {qid} {self.label} {self.formatstr.format(value)}"
+
+    def pretty_topic_mean(self, topic, value) -> str:
+        return f"{topic} all all {self.label} {self.formatstr.format(value)}"
 
 class NumRetrieved(DocRankingMeasure):
     '''The number of documents retrieved above the args.depth cutoff.'''
