@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import logging
 import json
+import sys
 
 from cdet_scorer.measures import (
     DocRankingMeasure,
@@ -369,7 +370,5 @@ def main():
 
 
 if __name__ == "__main__":
-    import sys
     from cdet_scorer.cli import main
-
     sys.exit(main())
