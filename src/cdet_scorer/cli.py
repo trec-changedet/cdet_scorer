@@ -1,3 +1,4 @@
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 import logging
@@ -297,27 +298,39 @@ def main():
             topic = topic_results.topic
             if topic not in qrels.qrels:
                 continue
-            # Only evaluate for days and questions that are judged
+            measured = defaultdict(set)
+
+            # Check doc rankings of questions the system returned docs for
+            # There may be zero relevant documents
+            for day, q_results in topic_results.results.items():
+                for qres in q_results:
+                    measured[day].add(qres.qid)
+                    jig.zero(topic, day, qres.qid)
+                    doc_ranking = [hit.doc_id for hit in 
+                                   sorted(qres.doc_ranking, 
+                                          key=lambda x: x.score, 
+                                          reverse=True)]
+                    qid_qrels = qrels.get_qid(topic, day, qres.qid)
+                    jig.compute(topic, day, qres.qid, doc_ranking, qid_qrels)
+
+                # Check its question ranking, which may be empty
+                jig.zero_qranking(topic, day)
+                question_ranking = [q_res.qid for q_res in topic_results.results[day]]
+                qrel_ranking = qrels.get_qranking(topic, day)
+                jig.compute_qranking(topic, day, question_ranking, qrel_ranking)
+
+            # Measure empty rankings for questions the system didn't return
             for day, qid_qrels in qrels.qrels[topic].items():
                 qres_dict = { qr.qid: qr for qr in topic_results.results[day]}
                 for qid, doc_qrels in qid_qrels.items():
+                    if qid in measured[day]:
+                        continue
+                    measured[day].add(qid)
                     jig.zero(topic, day, qid)
-                    if qid in qres_dict:
-                        q_results = qres_dict[qid]
-                        doc_ranking = [hit.doc_id for hit in 
-                                       sorted(q_results.doc_ranking, 
-                                              key=lambda x: x.score, 
-                                              reverse=True)]
-                    else:
-                        doc_ranking = []
+                    doc_ranking = []
                     jig.compute(topic, day, qid,
                                 doc_ranking, doc_qrels)
 
-                if day in qrels.qranking[topic]:
-                    jig.zero_qranking(topic, day)
-                    question_ranking = [q_res.qid for q_res in topic_results.results[day]]
-                    qrel_ranking = qrels.get_qranking(topic, day)
-                    jig.compute_qranking(topic, day, question_ranking, qrel_ranking)
 
     jig.print_scores()
     jig.print_day_means()
