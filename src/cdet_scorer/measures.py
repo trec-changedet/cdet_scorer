@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
 # DOI: http://dx.doi.org/10.1145/2911451.2914737
+from dataclasses import dataclass, field
+import json
 from math import log2
+import sys
 from typing import override, Final
 from enum import IntEnum
-from collections import defaultdict
+from collections import Counter, defaultdict
 import logging
 
 type Numeric = int | float
@@ -47,18 +50,38 @@ def infinite_defaultdict():
 # topic * day doc unjudged, or
 # topic * day doc not-relevant, or
 # topic * day qranking qid1,qid2,...,qidN
+
 class Qrels:
     def __init__(self, filename):
         self.qrels = infinite_defaultdict()
         self.qranking = infinite_defaultdict()
-
+        nonrel_lists = defaultdict(lambda: defaultdict(list))
+        rel_counts = defaultdict(Counter)
         with open(filename) as fp:
             for line in fp:
-                topic, qid, day, docid, rel = line.strip().split()
+                topic, day, qid, docid, rel = line.strip().split()
                 if docid == 'qranking':
                     self.qranking[topic][day] = rel.split(',')
+                elif rel == 'not-relevant':
+                    # need to add nonrels to every qid that day
+                    nonrel_lists[topic][day].append(docid)
+                elif rel == 'unjudged':
+                    continue
+                elif qid == '*':
+                    sys.exit('Qrels has bogus qid: {line}')
                 else:
                     self.qrels[topic][day][qid][docid] = str_to_gain(rel)
+                    rel_counts[topic][day] += 1
+        for topic, days in nonrel_lists.items():
+            for day, nonrels in days.items():
+                for qid in self.qrels[topic][day]:
+                    for docid in nonrels:
+                        self.qrels[topic][day][qid][docid] = RelLevel.NOT_RELEVANT
+        # Prune out topics with no relevant docs
+        for topic, days in list(self.qrels.items()):
+            for day in list(days):
+                if rel_counts[topic][day] == 0:
+                    del self.qrels[topic][day]
 
     def get(self, topic: str, day: str, qid: str, docid: str) -> RelLevel:
         if topic not in self.qrels:
@@ -107,6 +130,7 @@ class DocRankingMeasure:
         self.label: str = 'measure name'
         self.print_score: bool = True
         self.print_mean: bool = True
+        self.log = logging.getLogger(self.__class__.__name__)
 
     def __str__(self):
         return self.label
@@ -324,10 +348,10 @@ class QuestionRankingMeasure:
     def reduce(self, scores: dict[str, Numeric]) -> Numeric:
         return sum(scores.values()) / len(scores.values())
 
-    def pretty(self, topic: str, day: str, qid: str, value: Numeric) -> str:
+    def pretty(self, topic: str, day: str, value: Numeric) -> str:
         return f"{topic} {day} qranking {self.label} {self.formatstr.format(value)}"
 
-    def pretty_topic_mean(self, topic, qid, value) -> str:
+    def pretty_topic_mean(self, topic: str, value: Numeric) -> str:
         return f"{topic} all qranking {self.label} {self.formatstr.format(value)}"
 
 
