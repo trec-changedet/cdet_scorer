@@ -329,3 +329,40 @@ class QuestionRankingMeasure:
 
     def pretty_topic_mean(self, topic, qid, value) -> str:
         return f"{topic} all qranking {self.label} {self.formatstr.format(value)}"
+
+
+class RBO(QuestionRankingMeasure):
+    def __init__(self, p: float = 0.8):
+        super().__init__()
+        self.p = p
+        self.label = f"rbo(p={p})"
+
+    @classmethod
+    def _rbo(cls, s: list[str], t: list[str], p: float) -> float:
+        if not s and not t:
+            return 1.0
+        if not s or not t:
+            return 0.0
+
+        k = max(len(s), len(t))
+        s_set: set[str] = set()
+        t_set: set[str] = set()
+        overlap = 0
+        score = 0.0
+
+        for d in range(1, k + 1):
+            if d <= len(s):
+                s_set.add(s[d - 1])
+            if d <= len(t):
+                t_set.add(t[d - 1])
+            overlap = len(s_set & t_set)
+            x_d = overlap / d
+            score += x_d * (p ** (d - 1))
+
+        x_k = overlap / k
+        return (1.0 - p) * score + (p ** k) * x_k
+
+    @override
+    def compute(self, question_ranking: list[str], qrelranking: list[str]) -> float:
+        return RBO._rbo(question_ranking, qrelranking, self.p)
+

@@ -3,7 +3,7 @@ import unittest
 from contextlib import redirect_stdout
 
 from cdet_scorer.cli import EvalJig, QuestionEval, DayEval, TopicEval
-from cdet_scorer.measures import NumRetrieved, NumRelRet, RelLevel
+from cdet_scorer.measures import NumRetrieved, NumRelRet, RelLevel, RBO
 
 
 class EvalJigTest(unittest.TestCase):
@@ -78,6 +78,26 @@ class EvalJigTest(unittest.TestCase):
         self.assertIn('cd2026_001 all q_1 num_rel_ret 2', qid_lines)
         self.assertIn('cd2026_001 all q_2 num_ret 2', qid_lines)
         self.assertIn('cd2026_001 all q_2 num_rel_ret 1', qid_lines)
+
+    def test_question_ranking_evaluation(self):
+        jig = EvalJig()
+        jig.add_op(RBO(p=0.8))
+
+        jig.compute_qranking('cd2026_001', '2026-01-01', ['q1', 'q2'], ['q1', 'q2'])
+        jig.compute_qranking('cd2026_001', '2026-01-02', ['q1', 'q2'], ['q2', 'q1'])
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            jig.print_qranking_scores()
+        lines = [line.strip() for line in out.getvalue().strip().split('\n')]
+        self.assertIn("cd2026_001 2026-01-01 qranking rbo(p=0.8) 1.0000", lines)
+        self.assertIn("cd2026_001 2026-01-02 qranking rbo(p=0.8) 0.8000", lines)
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            jig.print_qranking_means()
+        mean_lines = [line.strip() for line in out.getvalue().strip().split('\n')]
+        self.assertIn("cd2026_001 all qranking rbo(p=0.8) 0.9000", mean_lines)
 
 
 if __name__ == '__main__':

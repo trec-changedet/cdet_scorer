@@ -1,7 +1,7 @@
 import unittest
 from functools import partial
 
-from cdet_scorer.measures import RecipRankPrime, RBPPrime, APPrime, NDCGPrime, RelLevel
+from cdet_scorer.measures import RecipRankPrime, RBPPrime, APPrime, NDCGPrime, RelLevel, RBO
 
 class RecipRankPrimeTest(unittest.TestCase):
     def test_rr_prime(self):
@@ -98,4 +98,23 @@ class NDCGPrimeTest(unittest.TestCase):
             value = NDCGPrime._ndcg_prime(gains, all_gains)
             print(r, all_gains, '::', value)
             check(value)
+
+
+class RBOTest(unittest.TestCase):
+    def test_rbo_identical(self):
+        r = RBO(p=0.8)
+        self.assertAlmostEqual(r.compute(['q1', 'q2', 'q3'], ['q1', 'q2', 'q3']), 1.0)
+        self.assertAlmostEqual(r.compute([], []), 1.0)
+
+    def test_rbo_disjoint(self):
+        r = RBO(p=0.8)
+        self.assertAlmostEqual(r.compute(['q1', 'q2'], ['q3', 'q4']), 0.0)
+        self.assertAlmostEqual(r.compute([], ['q1']), 0.0)
+        self.assertAlmostEqual(r.compute(['q1'], []), 0.0)
+
+    def test_rbo_permutation(self):
+        r = RBO(p=0.8)
+        # S = [q1, q2], T = [q2, q1] -> (1-0.8)*(0*1 + 1*0.8) + (0.8^2)*1 = 0.16 + 0.64 = 0.80
+        self.assertAlmostEqual(r.compute(['q1', 'q2'], ['q2', 'q1']), 0.8)
+
     
