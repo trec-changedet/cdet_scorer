@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
+import logging
+import json
 
 from cdet_scorer.measures import (
     DocRankingMeasure,
@@ -9,6 +11,8 @@ from cdet_scorer.measures import (
     NumRetrieved,
     Numeric,
     Qrels,
+    QuestionRankingMeasure,
+    RBO,
     RBPPrime,
     RecipRankPrime,
     RelLevel,
@@ -34,11 +38,18 @@ class QuestionEval:
 class DayEval:
     day: str
     questions: dict[str, QuestionEval] = field(default_factory=dict)
+    qranking_scores: dict[str, Numeric] = field(default_factory=dict)
 
     def get_or_create_question(self, qid: str) -> QuestionEval:
         if qid not in self.questions:
             self.questions[qid] = QuestionEval(qid=qid)
         return self.questions[qid]
+
+    def set_qranking_score(self, op_name: str, value: Numeric):
+        self.qranking_scores[op_name] = value
+
+    def get_qranking_score(self, op_name: str) -> Numeric | None:
+        return self.qranking_scores.get(op_name)
 
     def qid_scores_for(self, op_name: str) -> dict[str, Numeric]:
         """Returns {qid: score} for all questions evaluated on this day."""
@@ -72,13 +83,23 @@ class TopicEval:
             if qid in day_eval.questions and op_name in day_eval.questions[qid].scores
         }
 
+    def qranking_scores_for(self, op_name: str) -> dict[str, Numeric]:
+        """Returns {day: score} for question ranking across all days."""
+        return {
+            day: day_eval.qranking_scores[op_name]
+            for day, day_eval in self.days.items()
+            if op_name in day_eval.qranking_scores
+        }
+
 
 class EvalJig:
     def __init__(self, min_rel_level: RelLevel = RelLevel.AWARENESS, max_depth: int | None = 100):
-        self.ops: list[DocRankingMeasure] = []
+        self.doc_ops: list[DocRankingMeasure] = []
+        self.qrank_ops: list[QuestionRankingMeasure] = []
         self.topics: dict[str, TopicEval] = {}
         self.min_rel_level = min_rel_level
         self.max_depth = max_depth
+        self.log = logging.getLogger('eval')
 
     def get_or_create_topic(self, topic: str) -> TopicEval:
         if topic not in self.topics:
@@ -91,8 +112,13 @@ class EvalJig:
             for docid, rl in qrels.items()
         }
 
-    def add_op(self, meas: DocRankingMeasure):
-        self.ops.append(meas)
+    def add_op(self, meas: DocRankingMeasure | QuestionRankingMeasure):
+        if isinstance(meas, QuestionRankingMeasure):
+            self.qrank_ops.append(meas)
+        elif isinstance(meas, DocRankingMeasure):
+            self.doc_ops.append(meas)
+        else:
+            raise TypeError(f"Unknown measure type: {type(meas)}")
 
     def compute(
         self,
@@ -110,16 +136,36 @@ class EvalJig:
         if self.min_rel_level > RelLevel.AWARENESS:
             qrels = self._level_qrels(qrels)
 
-        for op in self.ops:
+        for op in self.doc_ops:
+            self.log.debug(f'{topic}/{day}/{qid} compute {op.label} ranking: {list(ranking_slice)}, qrels: {json.dumps(qrels)}')
             score = op.compute(ranking_slice, qrels)
             q_eval.set_score(str(op), 0 if score is None else score)
+
+    def compute_qranking(
+        self,
+        topic: str,
+        day: str,
+        question_ranking: list[str],
+        qrel_ranking: list[str],
+    ):
+        topic_eval = self.get_or_create_topic(topic)
+        day_eval = topic_eval.get_or_create_day(day)
+        for op in self.qrank_ops:
+            score = op.compute(question_ranking, qrel_ranking)
+            day_eval.set_qranking_score(str(op), 0 if score is None else score)
 
     def zero(self, topic: str, day: str, qid: str):
         topic_eval = self.get_or_create_topic(topic)
         day_eval = topic_eval.get_or_create_day(day)
         q_eval = day_eval.get_or_create_question(qid)
-        for op in self.ops:
+        for op in self.doc_ops:
             q_eval.set_score(str(op), 0)
+
+    def zero_qranking(self, topic: str, day: str):
+        topic_eval = self.get_or_create_topic(topic)
+        day_eval = topic_eval.get_or_create_day(day)
+        for op in self.qrank_ops:
+            day_eval.set_qranking_score(str(op), 0)
 
     def print_scores_for(self, topic: str):
         if topic not in self.topics:
@@ -129,7 +175,7 @@ class EvalJig:
             day_eval = topic_eval.days[day]
             for qid in sorted(day_eval.questions):
                 q_eval = day_eval.questions[qid]
-                for op in self.ops:
+                for op in self.doc_ops:
                     if not op.print_score:
                         continue
                     val = q_eval.get_score(str(op))
@@ -145,7 +191,7 @@ class EvalJig:
             topic_eval = self.topics[topic]
             for day in sorted(topic_eval.days):
                 day_eval = topic_eval.days[day]
-                for op in self.ops:
+                for op in self.doc_ops:
                     if not op.print_mean:
                         continue
                     scores = day_eval.qid_scores_for(str(op))
@@ -157,7 +203,7 @@ class EvalJig:
         for topic in sorted(self.topics):
             topic_eval = self.topics[topic]
             for qid in sorted(topic_eval.all_qids):
-                for op in self.ops:
+                for op in self.doc_ops:
                     if not op.print_mean:
                         continue
                     scores = topic_eval.day_scores_for(qid, str(op))
@@ -165,9 +211,33 @@ class EvalJig:
                         mean_val = op.reduce(scores)
                         print(op.pretty_qid_mean(topic, qid, mean_val))
 
+    def print_qranking_scores(self):
+        for topic in sorted(self.topics):
+            topic_eval = self.topics[topic]
+            for day in sorted(topic_eval.days):
+                day_eval = topic_eval.days[day]
+                for op in self.qrank_ops:
+                    if not op.print_score:
+                        continue
+                    val = day_eval.get_qranking_score(str(op))
+                    if val is not None:
+                        print(op.pretty(topic, day, val))
+
+    def print_qranking_means(self):
+        for topic in sorted(self.topics):
+            topic_eval = self.topics[topic]
+            for op in self.qrank_ops:
+                if not op.print_mean:
+                    continue
+                scores = topic_eval.qranking_scores_for(str(op))
+                if scores:
+                    mean_val = op.reduce(scores)
+                    print(op.pretty_topic_mean(topic, mean_val))
+
 
 def main():
     import argparse
+    import logging
 
     parser = argparse.ArgumentParser(description="Change detection scorer script")
     parser.add_argument(
@@ -184,9 +254,27 @@ def main():
         default=100,
         help="Maximum depth to consider in the ranking. Default is 100.",
     )
+    parser.add_argument(
+        '-v',
+        '--verbosity',
+        action='count',
+        default=0,
+        help='Increase verbosity (-v for INFO, -vv for DEBUG)'
+    )
     parser.add_argument("qrels_file", type=str, help="Path to the qrels file")
     parser.add_argument("input_file", type=str, help="Path to the input file")
     args = parser.parse_args()
+
+    log_levels = [
+        logging.WARNING,
+        logging.INFO,
+        logging.DEBUG
+    ]
+    logging.basicConfig(
+        level = log_levels[min(args.verbosity, len(log_levels) - 1)],
+        format="%(name)s:%(levelname)s: %(message)s",
+    )
+    log = logging.getLogger('main')
 
     qrels = Qrels(args.qrels_file)
 
@@ -198,6 +286,7 @@ def main():
     jig.add_op(RecipRankPrime())
     jig.add_op(NDCGPrime())
     jig.add_op(RBPPrime(p=0.8))
+    jig.add_op(RBO(p=0.8))
 
     with open(args.input_file) as f:
         metadata_json = f.readline()
@@ -206,15 +295,35 @@ def main():
         for line in f:
             topic_results = TopicResults.model_validate_json(line)
             topic = topic_results.topic
-            for day, q_results_list in topic_results.results.items():
-                for q_res in q_results_list:
-                    doc_ranking = [hit.doc_id for hit in q_res.doc_ranking]
-                    qrels_dict = qrels.get_qid(topic, day, q_res.qid)
-                    jig.compute(topic, day, q_res.qid, doc_ranking, qrels_dict)
+            if topic not in qrels.qrels:
+                continue
+            # Only evaluate for days and questions that are judged
+            for day, qid_qrels in qrels.qrels[topic].items():
+                qres_dict = { qr.qid: qr for qr in topic_results.results[day]}
+                for qid, doc_qrels in qid_qrels.items():
+                    jig.zero(topic, day, qid)
+                    if qid in qres_dict:
+                        q_results = qres_dict[qid]
+                        doc_ranking = [hit.doc_id for hit in 
+                                       sorted(q_results.doc_ranking, 
+                                              key=lambda x: x.score, 
+                                              reverse=True)]
+                    else:
+                        doc_ranking = []
+                    jig.compute(topic, day, qid,
+                                doc_ranking, doc_qrels)
+
+                if day in qrels.qranking[topic]:
+                    jig.zero_qranking(topic, day)
+                    question_ranking = [q_res.qid for q_res in topic_results.results[day]]
+                    qrel_ranking = qrels.get_qranking(topic, day)
+                    jig.compute_qranking(topic, day, question_ranking, qrel_ranking)
 
     jig.print_scores()
     jig.print_day_means()
     jig.print_qid_means()
+    jig.print_qranking_scores()
+    jig.print_qranking_means()
 
 
 if __name__ == "__main__":
