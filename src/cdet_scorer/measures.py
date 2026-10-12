@@ -77,7 +77,7 @@ class Qrels:
                 for qid in self.qrels[topic][day]:
                     for docid in nonrels:
                         self.qrels[topic][day][qid][docid] = RelLevel.NOT_RELEVANT
-        # Prune out topics with no relevant docs
+        # Prune out topics with no judgments
         for topic, days in list(self.qrels.items()):
             for day in list(days):
                 if rel_counts[topic][day] == 0:
