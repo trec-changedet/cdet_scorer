@@ -325,6 +325,7 @@ def main():
                     qrel_ranking = qrels.get_qranking(topic, day)
                     jig.compute_qranking(topic, day, question_ranking, qrel_ranking)
 
+                # Score questions that the run did not retrieve
                 if day in qrels.qrels[topic]:
                     qid_qrels = qrels.qrels[topic][day]
                     # Measure empty rankings for questions the system didn't return
