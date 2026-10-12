@@ -24,7 +24,7 @@ class RelLevel(float):
     ASSESSMENT: Final['ASSESSMENT']     # type: ignore
     ACTION: Final['ACTION']             # type: ignore
 
-RelLevel.UNJUDGED = RelLevel(-1.0)      # type: ignore
+RelLevel.UNJUDGED = RelLevel(0.0)       # type: ignore
 RelLevel.NOT_RELEVANT = RelLevel(0.0)   # type: ignore
 RelLevel.AWARENESS = RelLevel(1.0)      # type: ignore
 RelLevel.ASSESSMENT = RelLevel(5.0)     # type: ignore
