@@ -21,7 +21,7 @@ from cdet_scorer.measures import (
     str_to_gain,
 )
 from cdet_scorer.api_types import RunMetadata, TopicResults
-
+from cdet_scorer.data import dates
 
 @dataclass
 class QuestionEval:
@@ -300,36 +300,43 @@ def main():
                 continue
             measured = defaultdict(set)
 
-            # Check doc rankings of questions the system returned docs for
-            # There may be zero relevant documents
-            for day, q_results in topic_results.results.items():
+            for day in dates:
+                if day not in topic_results.results:
+                    sys.exit(f'Error: run is missing day {day} for topic {topic}')
+                # Check doc rankings of questions the system returned docs for
+                # There may be zero relevant documents
+                # Note that a valid run must have a value for every day in the
+                # collection.
+                q_results = topic_results.results[day]
                 for qres in q_results:
                     measured[day].add(qres.qid)
                     jig.zero(topic, day, qres.qid)
                     doc_ranking = [hit.doc_id for hit in 
-                                   sorted(qres.doc_ranking, 
-                                          key=lambda x: x.score, 
-                                          reverse=True)]
+                                    sorted(qres.doc_ranking, 
+                                           key=lambda x: x.score, 
+                                           reverse=True)]
                     qid_qrels = qrels.get_qid(topic, day, qres.qid)
                     jig.compute(topic, day, qres.qid, doc_ranking, qid_qrels)
 
                 # Check its question ranking, which may be empty
-                jig.zero_qranking(topic, day)
-                question_ranking = [q_res.qid for q_res in topic_results.results[day]]
-                qrel_ranking = qrels.get_qranking(topic, day)
-                jig.compute_qranking(topic, day, question_ranking, qrel_ranking)
+                if day in qrels.qranking[topic]:
+                    jig.zero_qranking(topic, day)
+                    question_ranking = [q_res.qid for q_res in topic_results.results[day]]
+                    qrel_ranking = qrels.get_qranking(topic, day)
+                    jig.compute_qranking(topic, day, question_ranking, qrel_ranking)
 
-            # Measure empty rankings for questions the system didn't return
-            for day, qid_qrels in qrels.qrels[topic].items():
-                qres_dict = { qr.qid: qr for qr in topic_results.results[day]}
-                for qid, doc_qrels in qid_qrels.items():
-                    if qid in measured[day]:
-                        continue
-                    measured[day].add(qid)
-                    jig.zero(topic, day, qid)
-                    doc_ranking = []
-                    jig.compute(topic, day, qid,
-                                doc_ranking, doc_qrels)
+                if day in qrels.qrels[topic]:
+                    qid_qrels = qrels.qrels[topic][day]
+                    # Measure empty rankings for questions the system didn't return
+
+                    for qid, doc_qrels in qid_qrels.items():
+                        if qid in measured[day]:
+                            continue
+                        measured[day].add(qid)
+                        jig.zero(topic, day, qid)
+                        doc_ranking = []
+                        jig.compute(topic, day, qid,
+                                    doc_ranking, doc_qrels)
 
 
     jig.print_scores()
