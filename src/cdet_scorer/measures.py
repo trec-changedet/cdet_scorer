@@ -185,11 +185,10 @@ class Unjudged(DocRankingMeasure):
 def r_t(gain_ranking: list[RelLevel], all_gains: list[RelLevel]) -> RelLevel:
     '''r_t, a formula in the paper, is the gain value associated with the terminal document.
     '''
-    if len(all_gains) == 0:
+    R = sum(all_gains)
+    if R == 0:
         return RelLevel.AWARENESS
     else:
-        all_gains = sorted(all_gains, reverse=True)
-        R = sum(all_gains)
         sum_r_i = sum(gain_ranking)
         return RelLevel(sum_r_i / R)
 
