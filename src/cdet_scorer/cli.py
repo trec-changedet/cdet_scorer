@@ -105,12 +105,18 @@ class TopicEval:
 
 
 class EvalJig:
-    def __init__(self, min_rel_level: RelLevel = RelLevel.AWARENESS, max_depth: int | None = 100):
+    def __init__(
+        self,
+        min_rel_level: RelLevel = RelLevel.AWARENESS,
+        max_depth: int | None = 100,
+        runtag: str | None = None,
+    ):
         self.doc_ops: list[DocRankingMeasure] = []
         self.qrank_ops: list[QuestionRankingMeasure] = []
         self.topics: dict[str, TopicEval] = {}
         self.min_rel_level = min_rel_level
         self.max_depth = max_depth
+        self.runtag = runtag
         self.log = logging.getLogger('eval')
 
     def get_or_create_topic(self, topic: str) -> TopicEval:
@@ -292,6 +298,8 @@ class EvalJig:
         num_topics = len(self.topics)
         num_days = len({day for topic_eval in self.topics.values() for day in topic_eval.days})
         num_qs = sum(len(topic_eval.all_qids) for topic_eval in self.topics.values())
+        if self.runtag is not None:
+            print(f"all all all runtag {self.runtag}")
         print(f"all all all num_topics {num_topics}")
         print(f"all all all num_days {num_days}")
         print(f"all all all num_qs {num_qs}")
@@ -388,6 +396,7 @@ def main():
     with open(args.input_file) as f:
         metadata_json = f.readline()
         metadata = RunMetadata.model_validate_json(metadata_json)
+        jig.runtag = metadata.runtag
 
         for line in f:
             topic_results = TopicResults.model_validate_json(line)

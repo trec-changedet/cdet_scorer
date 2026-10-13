@@ -111,7 +111,7 @@ class EvalJigTest(unittest.TestCase):
         self.assertEqual(all_num_ret[('cd2026_001', '2026-01-02', 'q_1')], 1)
         self.assertEqual(all_num_ret[('cd2026_002', '2026-01-01', 'q_1')], 2)
 
-        # Check stdout of print_all_means
+        # Check stdout of print_all_means (without runtag)
         out = io.StringIO()
         with redirect_stdout(out):
             jig.print_all_means()
@@ -124,6 +124,14 @@ class EvalJigTest(unittest.TestCase):
         self.assertIn('all all all num_ret 8', all_lines)
         # total num_rel_ret across all topics = 1 + 1 + 1 + 1 = 4
         self.assertIn('all all all num_rel_ret 4', all_lines)
+
+        # Set runtag and check output
+        jig.runtag = 'test-run-1'
+        out = io.StringIO()
+        with redirect_stdout(out):
+            jig.print_all_means()
+        all_lines_with_tag = [line.strip() for line in out.getvalue().strip().split('\n')]
+        self.assertIn('all all all runtag test-run-1', all_lines_with_tag)
 
     def test_question_ranking_evaluation(self):
         jig = EvalJig()
