@@ -7,7 +7,9 @@ import sys
 
 from cdet_scorer.measures import (
     APPrime,
+    Abstention,
     DocRankingMeasure,
+    FalseAlarm,
     NDCGPrime,
     NumRel,
     NumRelRet,
@@ -157,7 +159,12 @@ class EvalJig:
         for op in self.doc_ops:
             self.log.debug(f'{topic}/{day}/{qid} compute {op.label} ranking: {list(ranking_slice)}, qrels: {json.dumps(qrels)}')
             score = op.compute(ranking_slice, qrels)
-            q_eval.set_score(str(op), 0 if score is None else score)
+            # A measure returns None when it does not apply to this question-day
+            # (e.g. a prime measure on a nil-answer day). Skip it so it is absent
+            # from the output and excluded from means, rather than recorded as 0.
+            if score is None:
+                continue
+            q_eval.set_score(str(op), score)
 
     def compute_qranking(
         self,
@@ -171,13 +178,6 @@ class EvalJig:
         for op in self.qrank_ops:
             score = op.compute(question_ranking, qrel_ranking)
             day_eval.set_qranking_score(str(op), 0 if score is None else score)
-
-    def zero(self, topic: str, day: str, qid: str):
-        topic_eval = self.get_or_create_topic(topic)
-        day_eval = topic_eval.get_or_create_day(day)
-        q_eval = day_eval.get_or_create_question(qid)
-        for op in self.doc_ops:
-            q_eval.set_score(str(op), 0)
 
     def zero_qranking(self, topic: str, day: str):
         topic_eval = self.get_or_create_topic(topic)
@@ -366,6 +366,7 @@ def main():
         help='Increase verbosity (-v for INFO, -vv for DEBUG)'
     )
     parser.add_argument("qrels_file", type=str, help="Path to the qrels file")
+    parser.add_argument("topics_file", type=str, help="Path to the topics file")
     parser.add_argument("input_file", type=str, help="Path to the input file")
     args = parser.parse_args()
 
@@ -380,7 +381,13 @@ def main():
     )
     log = logging.getLogger('main')
 
-    qrels = Qrels(args.qrels_file)
+    topics = {}
+    with open(args.topics_file) as fp:
+        for line in fp:
+            tobj = json.loads(line)
+            topics[tobj['tid']] = tobj
+
+    qrels = Qrels(args.qrels_file, topics)
 
     jig = EvalJig(min_rel_level=args.min_rel_level, max_depth=args.max_depth)
     jig.add_op(NumRetrieved())
@@ -391,6 +398,8 @@ def main():
     jig.add_op(APPrime())
     jig.add_op(NDCGPrime())
     jig.add_op(RBPPrime(p=0.8))
+    jig.add_op(Abstention())
+    jig.add_op(FalseAlarm())
     jig.add_op(RBO(p=0.8))
 
     with open(args.input_file) as f:
@@ -400,53 +409,61 @@ def main():
 
         for line in f:
             topic_results = TopicResults.model_validate_json(line)
-            topic = topic_results.topic
-            if topic not in qrels.qrels:
+            tobj = topic_results.topic
+            if tobj not in qrels.qrels:
                 continue
             measured = defaultdict(set)
 
             for day in dates:
+                log.debug(f'Checking topic {tobj} day {day}')
                 if day not in topic_results.results:
-                    sys.exit(f'Error: run is missing day {day} for topic {topic}')
+                    sys.exit(f'Error: run is missing day {day} for topic {tobj}')
                 # Check doc rankings of questions the system returned docs for
                 # There may be zero relevant documents
                 # Note that a valid run must have a value for every day in the
                 # collection.
                 q_results = topic_results.results[day]
+                log.debug(f'Run returned {len(q_results)} questions')
                 for qres in q_results:
-                    qid_qrels = qrels.get_qid(topic, day, qres.qid)
+                    qid_qrels = qrels.get_qid(tobj, day, qres.qid)
                     if qid_qrels:
+                        log.debug(f'{qres.qid} has {len(qid_qrels)} relevant docs')
                         measured[day].add(qres.qid)
-                        jig.zero(topic, day, qres.qid)
                         doc_ranking = [hit.doc_id for hit in 
-                                        sorted(qres.doc_ranking, 
-                                            key=lambda x: x.score, 
-                                            reverse=True)]
-                        jig.compute(topic, day, qres.qid, doc_ranking, qid_qrels)
-
+                                       sorted(qres.doc_ranking, 
+                                              key=lambda x: x.score, 
+                                              reverse=True)]
+                        jig.compute(tobj, day, qres.qid, doc_ranking, qid_qrels)
+                    else:
+                        log.debug(f'{qres.qid} is unjudged')
                 # Check its question ranking, which may be empty
-                if day in qrels.qranking[topic]:
-                    jig.zero_qranking(topic, day)
+                if day in qrels.qranking[tobj]:
+                    log.debug(f'Checking question ranking for {tobj} {day}')
+                    jig.zero_qranking(tobj, day)
                     question_ranking = [q_res.qid for q_res in
                                         sorted(topic_results.results[day],
                                                key=lambda q: q.question_rank)]
-                    qrel_ranking = qrels.get_qranking(topic, day)
-                    jig.compute_qranking(topic, day, question_ranking, qrel_ranking)
+                    qrel_ranking = qrels.get_qranking(tobj, day)
+                    jig.compute_qranking(tobj, day, question_ranking, qrel_ranking)
+                else:
+                    log.debug(f'No question ranking')
 
                 # Score questions that the run did not retrieve
-                if day in qrels.qrels[topic]:
-                    qid_qrels = qrels.qrels[topic][day]
+                if day in qrels.qrels[tobj]:
+                    log.debug(f'Checking qrels for unscored qids')
+                    qid_qrels = qrels.qrels[tobj][day]
                     # Measure empty rankings for questions the system didn't return
 
                     for qid, doc_qrels in qid_qrels.items():
                         if qid in measured[day]:
                             continue
+                        log.debug(f'Scoring qrels qid {qid}')
                         measured[day].add(qid)
-                        jig.zero(topic, day, qid)
                         doc_ranking = []
-                        jig.compute(topic, day, qid,
+                        jig.compute(tobj, day, qid,
                                     doc_ranking, doc_qrels)
-
+                else:
+                    log.debug('Topic is unjudged')
 
     jig.print_scores()
     jig.print_day_means()

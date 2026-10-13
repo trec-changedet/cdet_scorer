@@ -1,7 +1,8 @@
 import unittest
 from functools import partial
 
-from cdet_scorer.measures import RecipRankPrime, RBPPrime, APPrime, NDCGPrime, RelLevel, RBO
+from cdet_scorer.measures import (RecipRankPrime, RBPPrime, APPrime, NDCGPrime,
+                                  RelLevel, RBO, Abstention, FalseAlarm)
 
 class RecipRankPrimeTest(unittest.TestCase):
     def test_rr_prime(self):
@@ -147,5 +148,36 @@ class RBOTest(unittest.TestCase):
         r = RBO(p=0.8)
         # S = [q1, q2], T = [q2, q1] -> (1-0.8)*(0*1 + 1*0.8) + (0.8^2)*1 = 0.16 + 0.64 = 0.80
         self.assertAlmostEqual(r.compute(['q1', 'q2'], ['q2', 'q1']), 0.8)
+
+
+class NilAnswerMeasureTest(unittest.TestCase):
+    '''The nil-answer measures (Abstention, FalseAlarm) and the prime measures
+    partition every question-day: a measure returns None where it does not apply,
+    so prime and nil measures never both score the same point.'''
+
+    ANSWERABLE = {'d1': RelLevel.AWARENESS, 'd2': RelLevel.NOT_RELEVANT}
+    NIL = {'d2': RelLevel.NOT_RELEVANT}
+
+    def test_abstention(self):
+        a = Abstention()
+        # nil-answer day: 1.0 for an empty ranking, 0.0 once anything is returned
+        self.assertEqual(a.compute([], self.NIL), 1.0)
+        self.assertEqual(a.compute(['x'], self.NIL), 0.0)
+        self.assertEqual(a.compute(['x', 'y'], self.NIL), 0.0)
+        # not applicable when there is a relevant document
+        self.assertIsNone(a.compute([], self.ANSWERABLE))
+
+    def test_false_alarm(self):
+        fa = FalseAlarm()
+        # nil-answer day: count of documents returned (lower is better)
+        self.assertEqual(fa.compute([], self.NIL), 0.0)
+        self.assertEqual(fa.compute(['x', 'y', 'z'], self.NIL), 3.0)
+        # not applicable when there is a relevant document
+        self.assertIsNone(fa.compute(['x'], self.ANSWERABLE))
+
+    def test_prime_measures_skip_nil_days(self):
+        for op in (RecipRankPrime(), APPrime(), NDCGPrime(), RBPPrime(p=0.8)):
+            self.assertIsNone(op.compute([], self.NIL), msg=str(op))
+            self.assertIsNotNone(op.compute(['d1'], self.ANSWERABLE), msg=str(op))
 
     

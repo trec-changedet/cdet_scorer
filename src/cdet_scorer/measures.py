@@ -54,14 +54,24 @@ def infinite_defaultdict():
 # topic * day qranking qid1,qid2,...,qidN
 
 class Qrels:
-    def __init__(self, filename):
+    def __init__(self, filename, topics):
+        self.topics = topics
         self.qrels = infinite_defaultdict()
         self.qranking = infinite_defaultdict()
         nonrel_lists = defaultdict(lambda: defaultdict(list))
-        rel_counts = defaultdict(Counter)
+        judged_counts = defaultdict(Counter)
+        topic_questions = defaultdict(set)
+
+        for tid, topic in self.topics.items():
+            for question in topic['questions']:
+                topic_questions[tid].add(question['qid'])
+
         with open(filename) as fp:
             for line in fp:
                 topic, day, qid, docid, rel = line.strip().split()
+                if qid != '*' and qid not in topic_questions[topic]:
+                    topic_questions[topic].add(qid)
+
                 if docid == 'qranking':
                     self.qranking[topic][day] = rel.split(',')
                 elif rel == 'not-relevant':
@@ -73,16 +83,21 @@ class Qrels:
                     sys.exit(f'Qrels has bogus qid: {line}')
                 else:
                     self.qrels[topic][day][qid][docid] = str_to_gain(rel)
-                    rel_counts[topic][day] += 1
+                    judged_counts[topic][day] += 1
+
         for topic, days in nonrel_lists.items():
             for day, nonrels in days.items():
-                for qid in self.qrels[topic][day]:
+                for qid in topic_questions[topic]:
                     for docid in nonrels:
                         self.qrels[topic][day][qid][docid] = RelLevel.NOT_RELEVANT
-        # Prune out topics with no judgments
+                        judged_counts[topic][day] += 1
+                        log.debug(judged_counts[topic][day])
+                log.debug(f'Qrels nonrels {topic} {day} {nonrels} {judged_counts[topic][day]}')
+        # Prune out topics with no judgments (e.g., all unjudged)
         for topic, days in list(self.qrels.items()):
             for day in list(days):
-                if rel_counts[topic][day] == 0:
+                if judged_counts[topic][day] == 0:
+                    log.debug(f'Qrels dropping {topic} {day}')
                     del self.qrels[topic][day]
 
     def get_qid(self, topic: str, day: str, qid: str) -> dict[str, RelLevel]:
@@ -104,6 +119,14 @@ class Qrels:
 
 def ranking_to_gains(doc_ranking: list[str], qrels: dict[str, RelLevel]):
     return [ qrels[docid] if docid in qrels else RelLevel.UNJUDGED for docid in doc_ranking ]
+
+
+def has_relevant(qrels: dict[str, RelLevel]) -> bool:
+    '''True if this question-day has at least one relevant document (gain above
+    not-relevant). Used to route a question-day to the prime measures (answerable)
+    or the nil-answer measures: each measure's compute() returns None when it does
+    not apply, and the scorer skips those rather than recording a zero.'''
+    return any(rl > RelLevel.NOT_RELEVANT for rl in qrels.values())
 
 
 class DocRankingMeasure:
@@ -221,7 +244,10 @@ class RecipRankPrime(DocRankingMeasure):
             raise ValueError('num_rel must be non-negative')
 
     @override
-    def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> float:
+    def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> float | None:
+        # Prime measures apply only to answerable (has-relevant) question-days.
+        if not has_relevant(qrels):
+            return None
         gains = ranking_to_gains(doc_ranking, qrels)
         num_rel = sum(1 for rl in qrels.values() if rl > RelLevel.NOT_RELEVANT)
         return RecipRankPrime._recip_rank_prime(gains, num_rel)
@@ -246,7 +272,10 @@ class RBPPrime(DocRankingMeasure):
         return (1.0 - p) * score + rt * p ** index
 
     @override
-    def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> float:
+    def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> float | None:
+        # Prime measures apply only to answerable (has-relevant) question-days.
+        if not has_relevant(qrels):
+            return None
         gains = ranking_to_gains(doc_ranking, qrels)
         all_gains = list(qrels.values())
         return RBPPrime._rbp_prime(gains, self.p, all_gains)
@@ -280,7 +309,10 @@ class APPrime(DocRankingMeasure):
         return sum_prec / (num_rel + 1.0)
 
     @override
-    def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> float:
+    def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> float | None:
+        # Prime measures apply only to answerable (has-relevant) question-days.
+        if not has_relevant(qrels):
+            return None
         gains = ranking_to_gains(doc_ranking, qrels)
         num_rel = sum(1 for rl in qrels.values() if rl > RelLevel.NOT_RELEVANT)
         return APPrime._ap_prime(gains, num_rel)
@@ -310,10 +342,52 @@ class NDCGPrime(DocRankingMeasure):
         return NDCGPrime._ndcg(gain_ranking + [rt], all_gains + [RelLevel.AWARENESS])
 
     @override
-    def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> float:
+    def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> float | None:
+        # Prime measures apply only to answerable (has-relevant) question-days.
+        if not has_relevant(qrels):
+            return None
         gains = ranking_to_gains(doc_ranking, qrels)
         all_gains = list(qrels.values())
         return NDCGPrime._ndcg_prime(gains, all_gains)
+
+
+# The nil-answer measures below are the complement of the prime measures: they
+# apply only to question-days with no relevant documents, where the correct
+# system behaviour is to return nothing. Keeping them separate from the prime
+# measures stops the many nil-answer days from swamping the ranking-quality
+# numbers (and vice versa).
+class Abstention(DocRankingMeasure):
+    '''Correct-abstention rate. On nil-answer question-days scores 1.0 if the
+    system returned nothing and 0.0 otherwise; the mean is the fraction of
+    should-be-quiet question-days the system correctly stayed quiet on. Returns
+    None (not applicable) when the question-day has any relevant document.'''
+    def __init__(self):
+        super().__init__()
+        self.label = 'abstention'
+        self.print_score = False
+
+    @override
+    def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> float | None:
+        if has_relevant(qrels):
+            return None
+        return 1.0 if len(doc_ranking) == 0 else 0.0
+
+class FalseAlarm(DocRankingMeasure):
+    '''False-alarm volume. On nil-answer question-days, the number of documents
+    the system returned (lower is better; a perfect system returns zero). The
+    mean is the average number of spurious documents per should-be-quiet
+    question-day. Returns None (not applicable) when the question-day has any
+    relevant document.'''
+    def __init__(self):
+        super().__init__()
+        self.label = 'false_alarm'
+        self.print_score = False
+
+    @override
+    def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> float | None:
+        if has_relevant(qrels):
+            return None
+        return float(len(doc_ranking))
 
 class QuestionRankingMeasure:
     def __init__(self):
