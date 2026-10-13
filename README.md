@@ -124,3 +124,4 @@ The script also reports the number of documents retrieved, relevant, relevant re
 
 For question rankings, the measure reported is rank-biased overlap (RBO), which is the only measure I can find for correlating two rankings when they might not contain all the items. RBO is only reported for topics/qids/days where there are relevant items, and thus a question ranking to compare to.
 
+Relevance is graded on three levels: awareness (this is new information), assessment (this changes how I interpret the situation), and action (this changes what we need to do). These levels are given NDCG' gain values 1 for awareness, 5 for assessment, and 20 for action. For AP', gains are thresholded to relevant/nonrelevant. For RBP', gains are scaled to [0,1]. For RR', the first relevant is the first with any relevant level.
