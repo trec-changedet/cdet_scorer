@@ -343,7 +343,9 @@ def main():
                 # Check its question ranking, which may be empty
                 if day in qrels.qranking[topic]:
                     jig.zero_qranking(topic, day)
-                    question_ranking = [q_res.qid for q_res in topic_results.results[day]]
+                    question_ranking = [q_res.qid for q_res in
+                                        sorted(topic_results.results[day],
+                                               key=lambda q: q.question_rank)]
                     qrel_ranking = qrels.get_qranking(topic, day)
                     jig.compute_qranking(topic, day, question_ranking, qrel_ranking)
 
