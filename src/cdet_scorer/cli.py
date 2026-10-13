@@ -257,6 +257,45 @@ class EvalJig:
                     mean_val = op.reduce(scores)
                     print(op.pretty_topic_mean(topic, mean_val))
 
+    def all_scores_for(self, op_name: str) -> dict[tuple[str, str, str], Numeric]:
+        """Returns {(topic, day, qid): score} across all topics, days, and questions."""
+        return {
+            (topic, day, qid): q_eval.scores[op_name]
+            for topic, topic_eval in self.topics.items()
+            for day, day_eval in topic_eval.days.items()
+            for qid, q_eval in day_eval.questions.items()
+            if op_name in q_eval.scores
+        }
+
+    def all_qranking_scores_for(self, op_name: str) -> dict[tuple[str, str], Numeric]:
+        """Returns {(topic, day): score} across all topics and days."""
+        return {
+            (topic, day): day_eval.qranking_scores[op_name]
+            for topic, topic_eval in self.topics.items()
+            for day, day_eval in topic_eval.days.items()
+            if op_name in day_eval.qranking_scores
+        }
+
+    def print_all_means(self):
+        for op in self.doc_ops:
+            if not op.print_mean:
+                continue
+            scores = self.all_scores_for(str(op))
+            if scores:
+                mean_val = op.reduce(scores)
+                print(op.pretty_all_mean(mean_val))
+
+    def print_all_qranking_means(self):
+        for op in self.qrank_ops:
+            if not op.print_mean:
+                continue
+            scores = self.all_qranking_scores_for(str(op))
+            if scores:
+                mean_val = op.reduce(scores)
+                print(op.pretty_all_mean(mean_val))
+
+    print_qranking_all_means = print_all_qranking_means
+
 
 def main():
     import argparse
@@ -372,6 +411,8 @@ def main():
     jig.print_topic_means()
     jig.print_qranking_scores()
     jig.print_qranking_means()
+    jig.print_all_means()
+    jig.print_all_qranking_means()
 
 
 if __name__ == "__main__":

@@ -135,6 +135,9 @@ class DocRankingMeasure:
     def pretty_topic_mean(self, topic, value) -> str:
         return f"{topic} all all {self.label} {self.formatstr.format(value)}"
 
+    def pretty_all_mean(self, value: Numeric) -> str:
+        return f"all all all {self.label} {self.formatstr.format(value)}"
+
 class NumRetrieved(DocRankingMeasure):
     '''The number of documents retrieved.'''
     def __init__(self):
@@ -325,7 +328,7 @@ class QuestionRankingMeasure:
     def compute(self, question_ranking: list[str], qrelranking: list[str]) -> Numeric | None:
         return None
 
-    def reduce(self, scores: dict[str, Numeric]) -> Numeric:
+    def reduce(self, scores: dict[Any, Numeric]) -> Numeric:
         return sum(scores.values()) / len(scores.values())
 
     def pretty(self, topic: str, day: str, value: Numeric) -> str:
@@ -333,6 +336,9 @@ class QuestionRankingMeasure:
 
     def pretty_topic_mean(self, topic: str, value: Numeric) -> str:
         return f"{topic} all qranking {self.label} {self.formatstr.format(value)}"
+
+    def pretty_all_mean(self, value: Numeric) -> str:
+        return f"all all qranking {self.label} {self.formatstr.format(value)}"
 
 
 class RBO(QuestionRankingMeasure):

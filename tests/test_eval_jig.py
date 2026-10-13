@@ -90,12 +90,35 @@ class EvalJigTest(unittest.TestCase):
         self.assertIn('cd2026_001 all all num_ret 6', topic_lines)
         self.assertIn('cd2026_001 all all num_rel_ret 3', topic_lines)
 
+        # Add second topic to test overall means across multiple topics
+        qrels_t2_d1_q1 = {'d10': RelLevel.AWARENESS}
+        jig.compute('cd2026_002', '2026-01-01', 'q_1', ['d10', 'd11'], qrels_t2_d1_q1)
+
+        # Check all_scores_for
+        all_num_ret = jig.all_scores_for('num_ret')
+        self.assertEqual(len(all_num_ret), 4)
+        self.assertEqual(all_num_ret[('cd2026_001', '2026-01-01', 'q_1')], 3)
+        self.assertEqual(all_num_ret[('cd2026_001', '2026-01-01', 'q_2')], 2)
+        self.assertEqual(all_num_ret[('cd2026_001', '2026-01-02', 'q_1')], 1)
+        self.assertEqual(all_num_ret[('cd2026_002', '2026-01-01', 'q_1')], 2)
+
+        # Check stdout of print_all_means
+        out = io.StringIO()
+        with redirect_stdout(out):
+            jig.print_all_means()
+        all_lines = [line.strip() for line in out.getvalue().strip().split('\n')]
+        # total num_ret across all topics = 3 + 2 + 1 + 2 = 8
+        self.assertIn('all all all num_ret 8', all_lines)
+        # total num_rel_ret across all topics = 1 + 1 + 1 + 1 = 4
+        self.assertIn('all all all num_rel_ret 4', all_lines)
+
     def test_question_ranking_evaluation(self):
         jig = EvalJig()
         jig.add_op(RBO(p=0.8))
 
         jig.compute_qranking('cd2026_001', '2026-01-01', ['q1', 'q2'], ['q1', 'q2'])
         jig.compute_qranking('cd2026_001', '2026-01-02', ['q1', 'q2'], ['q2', 'q1'])
+        jig.compute_qranking('cd2026_002', '2026-01-01', ['q1', 'q2'], ['q1', 'q2'])
 
         out = io.StringIO()
         with redirect_stdout(out):
@@ -103,12 +126,25 @@ class EvalJigTest(unittest.TestCase):
         lines = [line.strip() for line in out.getvalue().strip().split('\n')]
         self.assertIn("cd2026_001 2026-01-01 qranking rbo(p=0.8) 1.0000", lines)
         self.assertIn("cd2026_001 2026-01-02 qranking rbo(p=0.8) 0.8000", lines)
+        self.assertIn("cd2026_002 2026-01-01 qranking rbo(p=0.8) 1.0000", lines)
 
         out = io.StringIO()
         with redirect_stdout(out):
             jig.print_qranking_means()
         mean_lines = [line.strip() for line in out.getvalue().strip().split('\n')]
         self.assertIn("cd2026_001 all qranking rbo(p=0.8) 0.9000", mean_lines)
+        self.assertIn("cd2026_002 all qranking rbo(p=0.8) 1.0000", mean_lines)
+
+        # Check all_qranking_scores_for
+        all_rbo = jig.all_qranking_scores_for('rbo(p=0.8)')
+        self.assertEqual(len(all_rbo), 3)
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            jig.print_all_qranking_means()
+        all_qrank_lines = [line.strip() for line in out.getvalue().strip().split('\n')]
+        # (1.0 + 0.8 + 1.0) / 3 = 0.933333... -> 0.9333
+        self.assertIn("all all qranking rbo(p=0.8) 0.9333", all_qrank_lines)
 
 
 if __name__ == '__main__':
