@@ -83,39 +83,19 @@ class Qrels:
                 if rel_counts[topic][day] == 0:
                     del self.qrels[topic][day]
 
-    def get(self, topic: str, day: str, qid: str, docid: str) -> RelLevel:
-        if topic not in self.qrels:
-            log.warning(f'No topic {topic} in qrels')
-            return RelLevel.UNJUDGED
-        if day not in self.qrels[topic]:
-            log.warning(f'No day {day} in qrels for topic {topic}')
-            return RelLevel.UNJUDGED
-        if qid not in self.qrels[topic][day]:
-            log.warning(f'No question {qid} in qrels for topic {topic}, day {day}')
-            return RelLevel.UNJUDGED
-        if docid not in self.qrels[topic][day][qid]:
-            log.warning(f'No document {docid} in qrels for topic {topic}, day {day}, qid {qid}')
-            return RelLevel.UNJUDGED
-        return self.qrels[topic][day][qid][docid]
-
     def get_qid(self, topic: str, day: str, qid: str) -> dict[str, RelLevel]:
         if topic not in self.qrels:
-            log.warning(f'No topic {topic} in qrels')
             return {}
         if day not in self.qrels[topic]:
-            log.warning(f'No day {day} in qrels for topic {topic}')
             return {}
         if qid not in self.qrels[topic][day]:
-            log.warning(f'No question {qid} in qrels for topic {topic}, day {day}')
             return {}
         return self.qrels[topic][day][qid]
 
     def get_qranking(self, topic: str, day: str) -> list[str]:
         if topic not in self.qranking:
-            log.warning(f'No topic {topic} in question rankings')
             return []
         if day not in self.qranking[topic]:
-            log.warning(f'No day {day} in question rankings for topic {topic}')
             return []
         return self.qranking[topic][day]
 

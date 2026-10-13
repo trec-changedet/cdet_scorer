@@ -330,14 +330,15 @@ def main():
                 # collection.
                 q_results = topic_results.results[day]
                 for qres in q_results:
-                    measured[day].add(qres.qid)
-                    jig.zero(topic, day, qres.qid)
-                    doc_ranking = [hit.doc_id for hit in 
-                                    sorted(qres.doc_ranking, 
-                                           key=lambda x: x.score, 
-                                           reverse=True)]
                     qid_qrels = qrels.get_qid(topic, day, qres.qid)
-                    jig.compute(topic, day, qres.qid, doc_ranking, qid_qrels)
+                    if qid_qrels:
+                        measured[day].add(qres.qid)
+                        jig.zero(topic, day, qres.qid)
+                        doc_ranking = [hit.doc_id for hit in 
+                                        sorted(qres.doc_ranking, 
+                                            key=lambda x: x.score, 
+                                            reverse=True)]
+                        jig.compute(topic, day, qres.qid, doc_ranking, qid_qrels)
 
                 # Check its question ranking, which may be empty
                 if day in qrels.qranking[topic]:
