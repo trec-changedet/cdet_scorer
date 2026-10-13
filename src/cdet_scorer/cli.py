@@ -6,6 +6,7 @@ import json
 import sys
 
 from cdet_scorer.measures import (
+    APPrime,
     DocRankingMeasure,
     NDCGPrime,
     NumRel,
@@ -306,6 +307,7 @@ def main():
     jig.add_op(NumRelRet())
     jig.add_op(Unjudged())
     jig.add_op(RecipRankPrime())
+    jig.add_op(APPrime())
     jig.add_op(NDCGPrime())
     jig.add_op(RBPPrime(p=0.8))
     jig.add_op(RBO(p=0.8))

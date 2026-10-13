@@ -250,9 +250,6 @@ class RBPPrime(DocRankingMeasure):
         all_gains = list(qrels.values())
         return RBPPrime._rbp_prime(gains, self.p, all_gains)
 
-
-# AP_Prime is based on a graded-relevance version of AP, rather than the TREC-style
-# thresholded binary relevance version.
 class APPrime(DocRankingMeasure):
     def __init__(self):
         super().__init__()
@@ -262,7 +259,7 @@ class APPrime(DocRankingMeasure):
         all_gains = [RelLevel.AWARENESS for x in range(num_rel)]
         rt = r_t(gain_ranking, all_gains)
 
-        gain_ranking.append(rt)
+        gain_ranking = gain_ranking + [rt]
 
         index = 0
         sum_prec = 0.0
@@ -302,9 +299,7 @@ class NDCGPrime(DocRankingMeasure):
     @classmethod
     def _ndcg_prime(cls, gain_ranking: list[RelLevel], all_gains: list[RelLevel]):
         rt = r_t(gain_ranking, all_gains)
-        gain_ranking.append(rt)
-        all_gains.append(RelLevel.AWARENESS)
-        return NDCGPrime._ndcg(gain_ranking, all_gains)
+        return NDCGPrime._ndcg(gain_ranking + [rt], all_gains + [RelLevel.AWARENESS])
 
     @override
     def compute(self, doc_ranking: list[str], qrels: dict[str, RelLevel]) -> float:
