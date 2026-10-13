@@ -91,14 +91,23 @@ class Qrels:
                     for docid in nonrels:
                         self.qrels[topic][day][qid][docid] = RelLevel.NOT_RELEVANT
                         judged_counts[topic][day] += 1
-                        log.debug(judged_counts[topic][day])
-                log.debug(f'Qrels nonrels {topic} {day} {nonrels} {judged_counts[topic][day]}')
         # Prune out topics with no judgments (e.g., all unjudged)
         for topic, days in list(self.qrels.items()):
             for day in list(days):
                 if judged_counts[topic][day] == 0:
-                    log.debug(f'Qrels dropping {topic} {day}')
                     del self.qrels[topic][day]
+
+        self.topic_questions = topic_questions
+
+    def eval_qids(self, topic: str, day: str) -> set[str]:
+        '''The questions that are evaluation points for this topic on this day.
+        A day is an evaluation day when it was assessed -- i.e. it has at least
+        one judgment and so survives in self.qrels. On an assessed day every
+        topic question is a point: those with a relevant document are answerable
+        (prime measures), the rest are nil-answer (abstention / false_alarm).'''
+        if topic not in self.qrels or day not in self.qrels[topic]:
+            return set()
+        return self.topic_questions.get(topic, set())
 
     def get_qid(self, topic: str, day: str, qid: str) -> dict[str, RelLevel]:
         if topic not in self.qrels:
