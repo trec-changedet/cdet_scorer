@@ -64,6 +64,20 @@ class APPrimeTest(unittest.TestCase):
             print(r, num_rel, '::', value)
             check(value)
 
+    def test_ap_prime_thresholds_graded_to_binary(self):
+        '''AP' scores judged documents with binary relevance, so graded gains are
+        thresholded: a graded ranking scores the same as its binary equivalent and
+        a perfect ranking stays at 1.0 regardless of grade level (no values > 1.0).'''
+        AW, AS, AC, NR = (RelLevel.AWARENESS, RelLevel.ASSESSMENT,
+                          RelLevel.ACTION, RelLevel.NOT_RELEVANT)
+        # perfect rankings normalize to 1.0 at every grade level
+        self.assertAlmostEqual(APPrime._ap_prime([AW, AW], 2), 1.0)
+        self.assertAlmostEqual(APPrime._ap_prime([AS, AS], 2), 1.0)
+        self.assertAlmostEqual(APPrime._ap_prime([AC, AC], 2), 1.0)
+        # graded ranking == its binary equivalent
+        self.assertAlmostEqual(APPrime._ap_prime([AS, NR, AC], 3),
+                               APPrime._ap_prime([RelLevel(1), RelLevel(0), RelLevel(1)], 3))
+
 class NDCGTest(unittest.TestCase):
     def test_ndcg(self):
         print('NDCG-----')

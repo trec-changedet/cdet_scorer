@@ -251,9 +251,16 @@ class RBPPrime(DocRankingMeasure):
 class APPrime(DocRankingMeasure):
     def __init__(self):
         super().__init__()
+        self.label = "ap'"
 
     @classmethod
     def _ap_prime(cls, gain_ranking: list[RelLevel], num_rel: int):
+        # AP' uses binary relevance: judged documents score gain 1.0 if relevant and
+        # 0.0 otherwise (only the terminal document takes a fractional part-gain r_t),
+        # so AP' stays normalized to [0, 1] even with graded qrels.
+        gain_ranking = [RelLevel.AWARENESS if g > RelLevel.NOT_RELEVANT
+                        else RelLevel.NOT_RELEVANT
+                        for g in gain_ranking]
         all_gains = [RelLevel.AWARENESS for x in range(num_rel)]
         rt = r_t(gain_ranking, all_gains)
 
