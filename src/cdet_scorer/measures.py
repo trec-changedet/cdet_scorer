@@ -136,7 +136,7 @@ class DocRankingMeasure:
         return f"{topic} all all {self.label} {self.formatstr.format(value)}"
 
 class NumRetrieved(DocRankingMeasure):
-    '''The number of documents retrieved above the args.depth cutoff.'''
+    '''The number of documents retrieved.'''
     def __init__(self):
         super().__init__()
         self.formatstr = '{:d}'
@@ -147,8 +147,7 @@ class NumRetrieved(DocRankingMeasure):
         return sum(scores.values())
 
 class NumRel(DocRankingMeasure):
-    '''The number of relevant documents (rel >= args.minrel) 
-    in the qrels for this topic.'''
+    '''The number of relevant documents in the qrels for this topic.'''
     def __init__(self):
         super().__init__()
         self.formatstr = '{:d}'
@@ -159,8 +158,7 @@ class NumRel(DocRankingMeasure):
         return sum(scores.values())
 
 class NumRelRet(DocRankingMeasure):
-    '''The number of relevant documents (rel >= args.minrel) retrieved
-    above the args.depth cutoff.'''
+    '''The number of relevant documents retrieved.'''
     def __init__(self):
         super().__init__()
         self.formatstr = '{:d}'
@@ -171,7 +169,7 @@ class NumRelRet(DocRankingMeasure):
         return sum(scores.values())
 
 class Unjudged(DocRankingMeasure):
-    '''The number of unjudged documents retrieved above the args.depth cutoff.'''
+    '''The number of unjudged documents retrieved.'''
     def __init__(self):
         super().__init__()
         self.formatstr = '{:d}'
