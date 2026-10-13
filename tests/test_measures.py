@@ -2,7 +2,7 @@ import unittest
 from functools import partial
 
 from cdet_scorer.measures import (RecipRankPrime, RBPPrime, APPrime, NDCGPrime,
-                                  RelLevel, RBO, Abstention, FalseAlarm)
+                                  RelLevel, RBO, Abstention, Noise)
 
 class RecipRankPrimeTest(unittest.TestCase):
     def test_rr_prime(self):
@@ -151,7 +151,7 @@ class RBOTest(unittest.TestCase):
 
 
 class NilAnswerMeasureTest(unittest.TestCase):
-    '''The nil-answer measures (Abstention, FalseAlarm) and the prime measures
+    '''The nil-answer measures (Abstention, Noise) and the prime measures
     partition every question-day: a measure returns None where it does not apply,
     so prime and nil measures never both score the same point.'''
 
@@ -167,13 +167,13 @@ class NilAnswerMeasureTest(unittest.TestCase):
         # not applicable when there is a relevant document
         self.assertIsNone(a.compute([], self.ANSWERABLE))
 
-    def test_false_alarm(self):
-        fa = FalseAlarm()
+    def test_noise(self):
+        n = Noise()
         # nil-answer day: count of documents returned (lower is better)
-        self.assertEqual(fa.compute([], self.NIL), 0.0)
-        self.assertEqual(fa.compute(['x', 'y', 'z'], self.NIL), 3.0)
+        self.assertEqual(n.compute([], self.NIL), 0.0)
+        self.assertEqual(n.compute(['x', 'y', 'z'], self.NIL), 3.0)
         # not applicable when there is a relevant document
-        self.assertIsNone(fa.compute(['x'], self.ANSWERABLE))
+        self.assertIsNone(n.compute(['x'], self.ANSWERABLE))
 
     def test_prime_measures_skip_nil_days(self):
         for op in (RecipRankPrime(), APPrime(), NDCGPrime(), RBPPrime(p=0.8)):

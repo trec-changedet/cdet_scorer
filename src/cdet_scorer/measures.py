@@ -104,7 +104,7 @@ class Qrels:
         A day is an evaluation day when it was assessed -- i.e. it has at least
         one judgment and so survives in self.qrels. On an assessed day every
         topic question is a point: those with a relevant document are answerable
-        (prime measures), the rest are nil-answer (abstention / false_alarm).'''
+        (prime measures), the rest are nil-answer (abstention / noise).'''
         if topic not in self.qrels or day not in self.qrels[topic]:
             return set()
         return self.topic_questions.get(topic, set())
@@ -381,15 +381,17 @@ class Abstention(DocRankingMeasure):
             return None
         return 1.0 if len(doc_ranking) == 0 else 0.0
 
-class FalseAlarm(DocRankingMeasure):
-    '''False-alarm volume. On nil-answer question-days, the number of documents
-    the system returned (lower is better; a perfect system returns zero). The
-    mean is the average number of spurious documents per should-be-quiet
-    question-day. Returns None (not applicable) when the question-day has any
+class Noise(DocRankingMeasure):
+    '''Noise. On nil-answer question-days, the number of documents the system
+    returned -- every one is a false positive, since there are no relevant
+    documents -- so lower is better and a perfect system returns zero. The mean
+    is the average number of spurious documents per nil-answer question-day. This
+    is a volume, not the detection-literature false-alarm rate (that rate is
+    1 - abstention). Returns None (not applicable) when the question-day has any
     relevant document.'''
     def __init__(self):
         super().__init__()
-        self.label = 'false_alarm'
+        self.label = 'noise'
         self.print_score = False
 
     @override

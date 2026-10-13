@@ -9,12 +9,12 @@ from cdet_scorer.measures import (
     APPrime,
     Abstention,
     DocRankingMeasure,
-    FalseAlarm,
     NDCGPrime,
     NumRel,
     NumRelRet,
     NumRetrieved,
     Numeric,
+    Noise,
     Qrels,
     QuestionRankingMeasure,
     RBO,
@@ -425,7 +425,7 @@ def main():
     jig.add_op(NDCGPrime())
     jig.add_op(RBPPrime(p=0.8))
     jig.add_op(Abstention())
-    jig.add_op(FalseAlarm())
+    jig.add_op(Noise())
     jig.add_op(RBO(p=0.8))
 
     with open(args.input_file) as f:
@@ -435,22 +435,22 @@ def main():
 
         for line in f:
             topic_results = TopicResults.model_validate_json(line)
-            tobj = topic_results.topic
-            if tobj not in qrels.qrels:
-                log.debug(f'{tobj}: no judgments, skipping')
+            tid = topic_results.topic
+            if tid not in qrels.qrels:
+                log.debug(f'{tid}: no judgments, skipping')
                 continue
-            log.info(f'Scoring topic {tobj}')
+            log.info(f'Scoring topic {tid}')
             measured = defaultdict(set)
 
             for day in dates:
                 if day not in topic_results.results:
-                    sys.exit(f'Error: run is missing day {day} for topic {tobj}')
+                    sys.exit(f'Error: run is missing day {day} for topic {tid}')
                 # Check doc rankings of questions the system returned docs for
                 # There may be zero relevant documents
                 # Note that a valid run must have a value for every day in the
                 # collection.
                 q_results = topic_results.results[day]
-                eval_qids = qrels.eval_qids(tobj, day)
+                eval_qids = qrels.eval_qids(tid, day)
                 for qres in q_results:
                     if qres.qid in eval_qids:
                         measured[day].add(qres.qid)
@@ -458,27 +458,27 @@ def main():
                                        sorted(qres.doc_ranking, 
                                               key=lambda x: x.score, 
                                               reverse=True)]
-                        jig.compute(tobj, day, qres.qid, doc_ranking,
-                                    qrels.get_qid(tobj, day, qres.qid))
+                        jig.compute(tid, day, qres.qid, doc_ranking,
+                                    qrels.get_qid(tid, day, qres.qid))
                     else:
-                        log.debug(f'{tobj} {day} {qres.qid}: returned by run but '
+                        log.debug(f'{tid} {day} {qres.qid}: returned by run but '
                                   f'not an evaluation point, ignoring')
                 # Check its question ranking, which may be empty
-                if day in qrels.qranking[tobj]:
-                    jig.zero_qranking(tobj, day)
+                if day in qrels.qranking[tid]:
+                    jig.zero_qranking(tid, day)
                     question_ranking = [q_res.qid for q_res in
                                         sorted(topic_results.results[day],
                                                key=lambda q: q.question_rank)]
-                    qrel_ranking = qrels.get_qranking(tobj, day)
-                    jig.compute_qranking(tobj, day, question_ranking, qrel_ranking)
+                    qrel_ranking = qrels.get_qranking(tid, day)
+                    jig.compute_qranking(tid, day, question_ranking, qrel_ranking)
 
                 # Score evaluation points the run did not return as empty rankings.
                 for qid in eval_qids:
                     if qid in measured[day]:
                         continue
                     measured[day].add(qid)
-                    jig.compute(tobj, day, qid, [],
-                                qrels.get_qid(tobj, day, qid))
+                    jig.compute(tid, day, qid, [],
+                                qrels.get_qid(tid, day, qid))
 
     jig.print_scores()
     jig.print_day_means()
