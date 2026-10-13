@@ -99,6 +99,23 @@ class NDCGPrimeTest(unittest.TestCase):
             print(r, all_gains, '::', value)
             check(value)
 
+    def test_ndcg_prime_ideal_capped_at_depth(self):
+        '''NDCG' normalizes against DCGI@(d+1), the ideal of the system's own
+        ranking length, not the full judgment pool. These cases have more
+        relevant documents (num_rel) than the system retrieved (d), so the
+        ideal must be truncated to d+1; normalizing against the whole pool
+        would give much smaller values (e.g. 0.220 instead of 0.652).'''
+        print('NDCG prime depth-capped ideal-----')
+        triples = [('1', 10, partial(self.assertAlmostEqual, 0.652, places=3)),
+                   ('11', 6, partial(self.assertAlmostEqual, 0.844, places=3)),
+                   ('10', 5, partial(self.assertAlmostEqual, 0.516, places=3))]
+        for (r, num_rel, check) in triples:
+            gains = [RelLevel(int(x)) for x in list(r)]
+            all_gains = [RelLevel.AWARENESS for x in range(num_rel)]
+            value = NDCGPrime._ndcg_prime(gains, all_gains)
+            print(r, num_rel, '::', value)
+            check(value)
+
 
 class RBOTest(unittest.TestCase):
     def test_rbo_identical(self):

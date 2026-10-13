@@ -293,14 +293,10 @@ class NDCGPrime(DocRankingMeasure):
             return 0.0
         if not all_gains:
             raise ValueError('NDCG with no relevant documents is undefined')
-        index = 0
-        dcg = 0
-        idcg = 0
-        while index < len(gain_ranking):
-            dcg += gain_ranking[index] / log2(index + 2)
-            if index < len(all_gains):
-                idcg += all_gains[index] / log2(index + 2)
-            index += 1
+        dcg = sum(gain_ranking[index] / log2(index + 2)
+                  for index in range(len(gain_ranking)))
+        idcg = sum(all_gains[index] / log2(index + 2)
+                   for index in range(min(len(gain_ranking), len(all_gains))))
         return dcg/idcg
 
     @classmethod
