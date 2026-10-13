@@ -39,8 +39,10 @@ def str_to_gain(s: str) -> RelLevel:
         return RelLevel.ASSESSMENT
     elif s == 'action':
         return RelLevel.ACTION
-    else:
+    elif s == 'unjudged':
         return RelLevel.UNJUDGED
+    else:
+        sys.exit(f'Unknown RelLevel string {s}')
 
 def infinite_defaultdict():
     return defaultdict(infinite_defaultdict)
