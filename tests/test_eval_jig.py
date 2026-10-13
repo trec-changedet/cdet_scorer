@@ -64,6 +64,9 @@ class EvalJigTest(unittest.TestCase):
         with redirect_stdout(out):
             jig.print_day_means()
         day_lines = [line.strip() for line in out.getvalue().strip().split('\n')]
+        # day1 has 2 questions: q_1, q_2; day2 has 1 question: q_1
+        self.assertIn('cd2026_001 2026-01-01 all num_qs 2', day_lines)
+        self.assertIn('cd2026_001 2026-01-02 all num_qs 1', day_lines)
         # num_ret reduce is sum: day1 has q_1 (3) + q_2 (2) = 5
         self.assertIn('cd2026_001 2026-01-01 all num_ret 5', day_lines)
         self.assertIn('cd2026_001 2026-01-01 all num_rel_ret 2', day_lines)
@@ -75,6 +78,9 @@ class EvalJigTest(unittest.TestCase):
         with redirect_stdout(out):
             jig.print_qid_means()
         qid_lines = [line.strip() for line in out.getvalue().strip().split('\n')]
+        # q_1 appeared on 2 days, q_2 appeared on 1 day
+        self.assertIn('cd2026_001 all q_1 num_days 2', qid_lines)
+        self.assertIn('cd2026_001 all q_2 num_days 1', qid_lines)
         # num_ret reduce for q_1 across day1 (3) and day2 (1) = 4
         self.assertIn('cd2026_001 all q_1 num_ret 4', qid_lines)
         self.assertIn('cd2026_001 all q_1 num_rel_ret 2', qid_lines)
@@ -86,6 +92,9 @@ class EvalJigTest(unittest.TestCase):
         with redirect_stdout(out):
             jig.print_topic_means()
         topic_lines = [line.strip() for line in out.getvalue().strip().split('\n')]
+        # cd2026_001 has 2 days and 2 questions
+        self.assertIn('cd2026_001 all all num_days 2', topic_lines)
+        self.assertIn('cd2026_001 all all num_qs 2', topic_lines)
         # num_ret reduce for cd2026_001 across all days and questions (3 + 2 + 1) = 6
         self.assertIn('cd2026_001 all all num_ret 6', topic_lines)
         self.assertIn('cd2026_001 all all num_rel_ret 3', topic_lines)
@@ -107,6 +116,10 @@ class EvalJigTest(unittest.TestCase):
         with redirect_stdout(out):
             jig.print_all_means()
         all_lines = [line.strip() for line in out.getvalue().strip().split('\n')]
+        # 2 topics, 2 unique days (2026-01-01, 2026-01-02), 3 total questions (2 in t1, 1 in t2)
+        self.assertIn('all all all num_topics 2', all_lines)
+        self.assertIn('all all all num_days 2', all_lines)
+        self.assertIn('all all all num_qs 3', all_lines)
         # total num_ret across all topics = 3 + 2 + 1 + 2 = 8
         self.assertIn('all all all num_ret 8', all_lines)
         # total num_rel_ret across all topics = 1 + 1 + 1 + 1 = 4
@@ -132,7 +145,9 @@ class EvalJigTest(unittest.TestCase):
         with redirect_stdout(out):
             jig.print_qranking_means()
         mean_lines = [line.strip() for line in out.getvalue().strip().split('\n')]
+        self.assertIn("cd2026_001 all qranking num_days 2", mean_lines)
         self.assertIn("cd2026_001 all qranking rbo(p=0.8) 0.9000", mean_lines)
+        self.assertIn("cd2026_002 all qranking num_days 1", mean_lines)
         self.assertIn("cd2026_002 all qranking rbo(p=0.8) 1.0000", mean_lines)
 
         # Check all_qranking_scores_for
@@ -143,6 +158,8 @@ class EvalJigTest(unittest.TestCase):
         with redirect_stdout(out):
             jig.print_all_qranking_means()
         all_qrank_lines = [line.strip() for line in out.getvalue().strip().split('\n')]
+        self.assertIn("all all qranking num_topics 2", all_qrank_lines)
+        self.assertIn("all all qranking num_days 2", all_qrank_lines)
         # (1.0 + 0.8 + 1.0) / 3 = 0.933333... -> 0.9333
         self.assertIn("all all qranking rbo(p=0.8) 0.9333", all_qrank_lines)
 

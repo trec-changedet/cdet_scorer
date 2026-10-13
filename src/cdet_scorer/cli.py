@@ -203,6 +203,9 @@ class EvalJig:
             topic_eval = self.topics[topic]
             for day in sorted(topic_eval.days):
                 day_eval = topic_eval.days[day]
+                if not day_eval.questions:
+                    continue
+                print(f"{topic} {day} all num_qs {len(day_eval.questions)}")
                 for op in self.doc_ops:
                     if not op.print_mean:
                         continue
@@ -215,6 +218,8 @@ class EvalJig:
         for topic in sorted(self.topics):
             topic_eval = self.topics[topic]
             for qid in sorted(topic_eval.all_qids):
+                num_days = sum(1 for day_eval in topic_eval.days.values() if qid in day_eval.questions)
+                print(f"{topic} all {qid} num_days {num_days}")
                 for op in self.doc_ops:
                     if not op.print_mean:
                         continue
@@ -226,6 +231,8 @@ class EvalJig:
     def print_topic_means(self):
         for topic in sorted(self.topics):
             topic_eval = self.topics[topic]
+            print(f"{topic} all all num_days {len(topic_eval.days)}")
+            print(f"{topic} all all num_qs {len(topic_eval.all_qids)}")
             for op in self.doc_ops:
                 if not op.print_mean:
                     continue
@@ -249,6 +256,9 @@ class EvalJig:
     def print_qranking_means(self):
         for topic in sorted(self.topics):
             topic_eval = self.topics[topic]
+            num_days = sum(1 for day_eval in topic_eval.days.values() if day_eval.qranking_scores)
+            if num_days > 0:
+                print(f"{topic} all qranking num_days {num_days}")
             for op in self.qrank_ops:
                 if not op.print_mean:
                     continue
@@ -277,6 +287,14 @@ class EvalJig:
         }
 
     def print_all_means(self):
+        if not self.topics:
+            return
+        num_topics = len(self.topics)
+        num_days = len({day for topic_eval in self.topics.values() for day in topic_eval.days})
+        num_qs = sum(len(topic_eval.all_qids) for topic_eval in self.topics.values())
+        print(f"all all all num_topics {num_topics}")
+        print(f"all all all num_days {num_days}")
+        print(f"all all all num_qs {num_qs}")
         for op in self.doc_ops:
             if not op.print_mean:
                 continue
@@ -286,6 +304,22 @@ class EvalJig:
                 print(op.pretty_all_mean(mean_val))
 
     def print_all_qranking_means(self):
+        qrank_topics = [
+            topic_eval
+            for topic_eval in self.topics.values()
+            if any(day_eval.qranking_scores for day_eval in topic_eval.days.values())
+        ]
+        if not qrank_topics:
+            return
+        num_topics = len(qrank_topics)
+        num_days = len({
+            day
+            for topic_eval in qrank_topics
+            for day, day_eval in topic_eval.days.items()
+            if day_eval.qranking_scores
+        })
+        print(f"all all qranking num_topics {num_topics}")
+        print(f"all all qranking num_days {num_days}")
         for op in self.qrank_ops:
             if not op.print_mean:
                 continue
