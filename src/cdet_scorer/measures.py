@@ -68,7 +68,7 @@ class Qrels:
                 elif rel == 'unjudged':
                     continue
                 elif qid == '*':
-                    sys.exit('Qrels has bogus qid: {line}')
+                    sys.exit(f'Qrels has bogus qid: {line}')
                 else:
                     self.qrels[topic][day][qid][docid] = str_to_gain(rel)
                     rel_counts[topic][day] += 1
