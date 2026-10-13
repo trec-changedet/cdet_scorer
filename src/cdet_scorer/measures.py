@@ -44,6 +44,9 @@ def str_to_gain(s: str) -> RelLevel:
     else:
         sys.exit(f'Unknown RelLevel string {s}')
 
+def normalize_gain(g: RelLevel):
+    return g / RelLevel.ACTION
+
 def infinite_defaultdict():
     return defaultdict(infinite_defaultdict)
 
@@ -129,6 +132,8 @@ class Qrels:
 def ranking_to_gains(doc_ranking: list[str], qrels: dict[str, RelLevel]):
     return [ qrels[docid] if docid in qrels else RelLevel.UNJUDGED for docid in doc_ranking ]
 
+def ranking_to_normalized_gains(doc_ranking: list[str], qrels: dict[str, RelLevel]) -> list[RelLevel]:
+    return [ normalize_gain(x) for x in ranking_to_gains(doc_ranking, qrels)]
 
 def has_relevant(qrels: dict[str, RelLevel]) -> bool:
     '''True if this question-day has at least one relevant document (gain above
@@ -234,7 +239,7 @@ class RecipRankPrime(DocRankingMeasure):
     def _recip_rank(cls, gains: list[RelLevel]) -> float:
         first_rel = None
         for i in range(len(gains)):
-            if gains[i] > 0:
+            if gains[i] > RelLevel.NOT_RELEVANT:
                 first_rel = i
                 break
 
@@ -285,8 +290,8 @@ class RBPPrime(DocRankingMeasure):
         # Prime measures apply only to answerable (has-relevant) question-days.
         if not has_relevant(qrels):
             return None
-        gains = ranking_to_gains(doc_ranking, qrels)
-        all_gains = list(qrels.values())
+        gains = ranking_to_normalized_gains(doc_ranking, qrels)
+        all_gains = [normalize_gain(x) for x in list(qrels.values())]
         return RBPPrime._rbp_prime(gains, self.p, all_gains)
 
 class APPrime(DocRankingMeasure):
