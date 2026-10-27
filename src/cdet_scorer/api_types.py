@@ -1,5 +1,5 @@
-from typing import Annotated, List, Literal, Union
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, TypeAdapter
+from typing import Annotated, Any, List, Literal, Union
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, TypeAdapter, model_validator
 
 type DayString = Annotated[str, StringConstraints(pattern=r'^\d{4}-\d{2}-\d{2}$', min_length=10, max_length=10)]
 class DocumentSchema(BaseModel):
@@ -12,6 +12,13 @@ class DocumentSchema(BaseModel):
     # This configuration acts as the utility to map Peewee ORM models to Pydantic definitions
     # It tells Pydantic to read data as attributes (obj.id) rather than just dict lookups (obj['id'])
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode='before')
+    @classmethod
+    def _populate_day_from_date(cls, data: Any) -> Any:
+        if isinstance(data, dict) and 'day' not in data and 'date' in data:
+            return {**data, 'day': str(data['date'])[:10]}
+        return data
 
 # A search hit
 class Hit(BaseModel):

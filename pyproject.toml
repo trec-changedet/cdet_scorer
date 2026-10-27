@@ -12,7 +12,8 @@ classifiers = [
   "Operating System :: OS Independent",
 ]
 dependencies = [
-  "pydantic"
+  "pydantic",
+  "peewee"
 ]
 
 license.file = "LICENSE"
