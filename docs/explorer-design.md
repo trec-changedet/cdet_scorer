@@ -169,18 +169,8 @@ Clicking any `(topic, day, qid)` cell in the Event Calendar opens the deep-inspe
   - **SQLite** uses a row-oriented B-tree storage engine (`WITHOUT ROWID` or `INTEGER PRIMARY KEY` + index on `id`), delivering sub-millisecond random access with zero external dependencies (`sqlite3` is in the Python standard library).
   - **DuckDB** is a columnar OLAP engine optimized for full-column scans and aggregations; point lookups on string IDs scan row-group zonemaps and are significantly slower and heavier for random access. (DuckDB or `pyarrow` can still be used by the *indexer script* to read an input `.parquet` file and stream rows into SQLite.)
 - **Corpus Indexing Script (`cdet_scorer.index_corpus`)**:
-  - A standalone CLI utility that reads a `.jsonl` or `.parquet` file of `DocumentSchema` objects and writes a `.sqlite` database file:
-    ```sql
-    CREATE TABLE documents (
-        id TEXT PRIMARY KEY,
-        day TEXT NOT NULL,
-        date TEXT NOT NULL,
-        url TEXT NOT NULL,
-        text TEXT NOT NULL
-    ) WITHOUT ROWID;
-    CREATE INDEX idx_documents_day ON documents(day);
-    ```
-  - Uses batched transactions (`executemany` with `PRAGMA synchronous = OFF; PRAGMA journal_mode = MEMORY;` during bulk load) to index hundreds of thousands of documents in seconds.
+  - A standalone CLI utility that reads a `.jsonl` or `.parquet` file of `DocumentSchema` objects and writes a `.sqlite` database file using **Peewee ORM** (`Document` model with `without_rowid = True`, primary key on `id`, and index on `day`), mapping directly to `DocumentSchema` via `ConfigDict(from_attributes=True)` with zero raw SQL strings.
+  - Uses batched transactions (`Document.insert_many(batch).on_conflict_replace().execute()`) with `SqliteDatabase` pragmas (`synchronous=0`, `journal_mode="memory"`) during bulk load to index hundreds of thousands of documents in seconds.
 - **Frontend**: **Single-Page Lightweight Web UI** served statically by FastAPI (HTML5 + Tailwind CSS + Alpine.js + Plotly.js, or a small Vite/React bundle). Zero Node.js build step required if using Alpine.js + Plotly.js CDN/vendored assets, keeping installation as simple as `pip install -e ".[explorer]"`.
 
 ### 5.2. Data Flow & In-Memory State
