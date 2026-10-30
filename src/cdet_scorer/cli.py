@@ -230,48 +230,90 @@ class EvalJig:
         for topic in sorted(self.topics):
             self.print_scores_for(topic)
 
+    def get_day_means(self, topic: str, day: str) -> dict[str, Numeric]:
+        """Compute official day means (`topic day all`) using each measure's reduce()."""
+        if topic not in self.topics or day not in self.topics[topic].days:
+            return {}
+        day_eval = self.topics[topic].days[day]
+        if not day_eval.questions:
+            return {}
+        result: dict[str, Numeric] = {"num_qs": len(day_eval.questions)}
+        for op in self.doc_ops:
+            if not op.print_mean:
+                continue
+            scores = day_eval.qid_scores_for(str(op))
+            if scores:
+                result[str(op)] = op.reduce(scores)
+        return result
+
     def print_day_means(self):
         for topic in sorted(self.topics):
             topic_eval = self.topics[topic]
             for day in sorted(topic_eval.days):
-                day_eval = topic_eval.days[day]
-                if not day_eval.questions:
+                means = self.get_day_means(topic, day)
+                if not means:
                     continue
-                print(f"{topic} {day} all num_qs {len(day_eval.questions)}")
+                print(f"{topic} {day} all num_qs {means['num_qs']}")
                 for op in self.doc_ops:
-                    if not op.print_mean:
-                        continue
-                    scores = day_eval.qid_scores_for(str(op))
-                    if scores:
-                        mean_val = op.reduce(scores)
-                        print(op.pretty_day_mean(topic, day, mean_val))
+                    if str(op) in means:
+                        print(op.pretty_day_mean(topic, day, means[str(op)]))
+
+    def get_qid_means(self, topic: str, qid: str) -> dict[str, Numeric]:
+        """Compute official question means (`topic all qid`) using each measure's reduce()."""
+        if topic not in self.topics:
+            return {}
+        topic_eval = self.topics[topic]
+        num_days = sum(
+            1 for day_eval in topic_eval.days.values() if qid in day_eval.questions
+        )
+        if num_days == 0:
+            return {}
+        result: dict[str, Numeric] = {"num_days": num_days}
+        for op in self.doc_ops:
+            if not op.print_mean:
+                continue
+            scores = topic_eval.day_scores_for(qid, str(op))
+            if scores:
+                result[str(op)] = op.reduce(scores)
+        return result
 
     def print_qid_means(self):
         for topic in sorted(self.topics):
             topic_eval = self.topics[topic]
             for qid in sorted(topic_eval.all_qids):
-                num_days = sum(1 for day_eval in topic_eval.days.values() if qid in day_eval.questions)
-                print(f"{topic} all {qid} num_days {num_days}")
+                means = self.get_qid_means(topic, qid)
+                if not means:
+                    continue
+                print(f"{topic} all {qid} num_days {means['num_days']}")
                 for op in self.doc_ops:
-                    if not op.print_mean:
-                        continue
-                    scores = topic_eval.day_scores_for(qid, str(op))
-                    if scores:
-                        mean_val = op.reduce(scores)
-                        print(op.pretty_qid_mean(topic, qid, mean_val))
+                    if str(op) in means:
+                        print(op.pretty_qid_mean(topic, qid, means[str(op)]))
+
+    def get_topic_means(self, topic: str) -> dict[str, Numeric]:
+        """Compute official topic means (`topic all all`) using each measure's reduce()."""
+        if topic not in self.topics:
+            return {}
+        topic_eval = self.topics[topic]
+        result: dict[str, Numeric] = {
+            "num_days": len(topic_eval.days),
+            "num_qs": len(topic_eval.all_qids),
+        }
+        for op in self.doc_ops:
+            if not op.print_mean:
+                continue
+            scores = topic_eval.all_scores_for(str(op))
+            if scores:
+                result[str(op)] = op.reduce(scores)
+        return result
 
     def print_topic_means(self):
         for topic in sorted(self.topics):
-            topic_eval = self.topics[topic]
-            print(f"{topic} all all num_days {len(topic_eval.days)}")
-            print(f"{topic} all all num_qs {len(topic_eval.all_qids)}")
+            means = self.get_topic_means(topic)
+            print(f"{topic} all all num_days {means['num_days']}")
+            print(f"{topic} all all num_qs {means['num_qs']}")
             for op in self.doc_ops:
-                if not op.print_mean:
-                    continue
-                scores = topic_eval.all_scores_for(str(op))
-                if scores:
-                    mean_val = op.reduce(scores)
-                    print(op.pretty_topic_mean(topic, mean_val))
+                if str(op) in means:
+                    print(op.pretty_topic_mean(topic, means[str(op)]))
 
     def print_qranking_scores(self):
         for topic in sorted(self.topics):
@@ -285,19 +327,31 @@ class EvalJig:
                     if val is not None:
                         print(op.pretty(topic, day, val))
 
+    def get_topic_qranking_means(self, topic: str) -> dict[str, Numeric]:
+        """Compute official topic question-ranking means (`topic all qranking`)."""
+        if topic not in self.topics:
+            return {}
+        topic_eval = self.topics[topic]
+        num_days = sum(
+            1 for day_eval in topic_eval.days.values() if day_eval.qranking_scores
+        )
+        result: dict[str, Numeric] = {"num_days": num_days}
+        for op in self.qrank_ops:
+            if not op.print_mean:
+                continue
+            scores = topic_eval.qranking_scores_for(str(op))
+            if scores:
+                result[str(op)] = op.reduce(scores)
+        return result
+
     def print_qranking_means(self):
         for topic in sorted(self.topics):
-            topic_eval = self.topics[topic]
-            num_days = sum(1 for day_eval in topic_eval.days.values() if day_eval.qranking_scores)
-            if num_days > 0:
-                print(f"{topic} all qranking num_days {num_days}")
+            means = self.get_topic_qranking_means(topic)
+            if means.get("num_days", 0) > 0:
+                print(f"{topic} all qranking num_days {means['num_days']}")
             for op in self.qrank_ops:
-                if not op.print_mean:
-                    continue
-                scores = topic_eval.qranking_scores_for(str(op))
-                if scores:
-                    mean_val = op.reduce(scores)
-                    print(op.pretty_topic_mean(topic, mean_val))
+                if str(op) in means:
+                    print(op.pretty_topic_mean(topic, means[str(op)]))
 
     def all_scores_for(self, op_name: str) -> dict[tuple[str, str, str], Numeric]:
         """Returns {(topic, day, qid): score} across all topics, days, and questions."""
@@ -318,51 +372,211 @@ class EvalJig:
             if op_name in day_eval.qranking_scores
         }
 
-    def print_all_means(self):
+    def get_all_means(self) -> dict[str, Numeric]:
+        """Compute official overall means (`all all all`) using each measure's reduce()."""
         if not self.topics:
-            return
-        num_topics = len(self.topics)
-        num_days = len({day for topic_eval in self.topics.values() for day in topic_eval.days})
-        num_qs = sum(len(topic_eval.all_qids) for topic_eval in self.topics.values())
-        if self.runtag is not None:
-            print(f"all all all runtag {self.runtag}")
-        print(f"all all all num_topics {num_topics}")
-        print(f"all all all num_days {num_days}")
-        print(f"all all all num_qs {num_qs}")
+            return {}
+        result: dict[str, Numeric] = {
+            "num_topics": len(self.topics),
+            "num_days": len(
+                {day for topic_eval in self.topics.values() for day in topic_eval.days}
+            ),
+            "num_qs": sum(len(topic_eval.all_qids) for topic_eval in self.topics.values()),
+        }
         for op in self.doc_ops:
             if not op.print_mean:
                 continue
             scores = self.all_scores_for(str(op))
             if scores:
-                mean_val = op.reduce(scores)
-                print(op.pretty_all_mean(mean_val))
+                result[str(op)] = op.reduce(scores)
+        return result
 
-    def print_all_qranking_means(self):
+    def print_all_means(self):
+        means = self.get_all_means()
+        if not means:
+            return
+        if self.runtag is not None:
+            print(f"all all all runtag {self.runtag}")
+        print(f"all all all num_topics {means['num_topics']}")
+        print(f"all all all num_days {means['num_days']}")
+        print(f"all all all num_qs {means['num_qs']}")
+        for op in self.doc_ops:
+            if str(op) in means:
+                print(op.pretty_all_mean(means[str(op)]))
+
+    def get_all_qranking_means(self) -> dict[str, Numeric]:
+        """Compute official overall question-ranking means (`all all qranking`)."""
         qrank_topics = [
             topic_eval
             for topic_eval in self.topics.values()
             if any(day_eval.qranking_scores for day_eval in topic_eval.days.values())
         ]
         if not qrank_topics:
-            return
-        num_topics = len(qrank_topics)
-        num_days = len({
-            day
-            for topic_eval in qrank_topics
-            for day, day_eval in topic_eval.days.items()
-            if day_eval.qranking_scores
-        })
-        print(f"all all qranking num_topics {num_topics}")
-        print(f"all all qranking num_days {num_days}")
+            return {}
+        result: dict[str, Numeric] = {
+            "num_topics": len(qrank_topics),
+            "num_days": len(
+                {
+                    day
+                    for topic_eval in qrank_topics
+                    for day, day_eval in topic_eval.days.items()
+                    if day_eval.qranking_scores
+                }
+            ),
+        }
         for op in self.qrank_ops:
             if not op.print_mean:
                 continue
             scores = self.all_qranking_scores_for(str(op))
             if scores:
-                mean_val = op.reduce(scores)
-                print(op.pretty_all_mean(mean_val))
+                result[str(op)] = op.reduce(scores)
+        return result
+
+    def print_all_qranking_means(self):
+        means = self.get_all_qranking_means()
+        if not means:
+            return
+        print(f"all all qranking num_topics {means['num_topics']}")
+        print(f"all all qranking num_days {means['num_days']}")
+        for op in self.qrank_ops:
+            if str(op) in means:
+                print(op.pretty_all_mean(means[str(op)]))
 
     print_qranking_all_means = print_all_qranking_means
+
+
+def load_topics(topics_file: str | Path) -> dict[str, dict]:
+    """Load topics JSONL file into a {tid: topic_dict} mapping."""
+    topics: dict[str, dict] = {}
+    with open(topics_file, encoding="utf-8") as fp:
+        for line in fp:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            tobj = json.loads(stripped)
+            topics[tobj["tid"]] = tobj
+    return topics
+
+
+def load_run_file(input_file: str | Path) -> tuple[RunMetadata, list[TopicResults]]:
+    """Parse a run JSONL file into its RunMetadata header and TopicResults records."""
+    topic_results_list: list[TopicResults] = []
+    with open(input_file, encoding="utf-8") as f:
+        metadata_json = f.readline()
+        metadata = RunMetadata.model_validate_json(metadata_json)
+        for line in f:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            topic_results_list.append(TopicResults.model_validate_json(stripped))
+    return metadata, topic_results_list
+
+
+def build_default_jig(
+    min_rel_level: RelLevel = RelLevel.AWARENESS,
+    max_depth: int | None = 100,
+    runtag: str | None = None,
+) -> EvalJig:
+    """Create an EvalJig configured with the standard official measures."""
+    jig = EvalJig(min_rel_level=min_rel_level, max_depth=max_depth, runtag=runtag)
+    jig.add_op(NumRetrieved())
+    jig.add_op(NumRel())
+    jig.add_op(NumRelRet())
+    jig.add_op(Unjudged())
+    jig.add_op(RecipRankPrime())
+    jig.add_op(APPrime())
+    jig.add_op(NDCGPrime())
+    jig.add_op(RBPPrime(p=0.8))
+    jig.add_op(Abstention())
+    jig.add_op(Noise())
+    jig.add_op(RBO(p=0.8))
+    return jig
+
+
+def evaluate_run(
+    qrels: Qrels,
+    metadata: RunMetadata,
+    topic_results_iter: list[TopicResults],
+    *,
+    min_rel_level: RelLevel = RelLevel.AWARENESS,
+    max_depth: int | None = 100,
+    logger: logging.Logger | None = None,
+) -> EvalJig:
+    """Score a parsed run against Qrels using the canonical TREC Change Detection scoring loop."""
+    log = logger or logging.getLogger("main")
+    jig = build_default_jig(
+        min_rel_level=min_rel_level,
+        max_depth=max_depth,
+        runtag=metadata.runtag,
+    )
+
+    for topic_results in topic_results_iter:
+        tid = topic_results.topic
+        if tid not in qrels.qrels:
+            log.debug(f"{tid}: no judgments, skipping")
+            continue
+        log.info(f"Scoring topic {tid}")
+        measured = defaultdict(set)
+
+        for day in dates:
+            if day not in topic_results.results:
+                sys.exit(f"Error: run is missing day {day} for topic {tid}")
+            # Check doc rankings of questions the system returned docs for
+            # There may be zero relevant documents
+            # Note that a valid run must have a value for every day in the
+            # collection.
+            q_results = topic_results.results[day]
+            eval_qids = qrels.eval_qids(tid, day)
+            for qres in q_results:
+                if qres.qid in eval_qids:
+                    measured[day].add(qres.qid)
+                    doc_ranking = [
+                        hit.doc_id
+                        for hit in sorted(
+                            qres.doc_ranking,
+                            key=lambda x: x.score,
+                            reverse=True,
+                        )
+                    ]
+                    jig.compute(
+                        tid,
+                        day,
+                        qres.qid,
+                        doc_ranking,
+                        qrels.get_qid(tid, day, qres.qid),
+                    )
+                else:
+                    log.debug(
+                        f"{tid} {day} {qres.qid}: returned by run but "
+                        f"not an evaluation point, ignoring"
+                    )
+            # Check its question ranking, which may be empty
+            if day in qrels.qranking[tid]:
+                jig.zero_qranking(tid, day)
+                question_ranking = [
+                    q_res.qid
+                    for q_res in sorted(
+                        topic_results.results[day],
+                        key=lambda q: q.question_rank,
+                    )
+                ]
+                qrel_ranking = qrels.get_qranking(tid, day)
+                jig.compute_qranking(tid, day, question_ranking, qrel_ranking)
+
+            # Score evaluation points the run did not return as empty rankings.
+            for qid in eval_qids:
+                if qid in measured[day]:
+                    continue
+                measured[day].add(qid)
+                jig.compute(
+                    tid,
+                    day,
+                    qid,
+                    [],
+                    qrels.get_qid(tid, day, qid),
+                )
+
+    return jig
 
 
 def main():
@@ -407,78 +621,17 @@ def main():
     )
     log = logging.getLogger('main')
 
-    topics = {}
-    with open(args.topics_file) as fp:
-        for line in fp:
-            tobj = json.loads(line)
-            topics[tobj['tid']] = tobj
-
+    topics = load_topics(args.topics_file)
     qrels = Qrels(args.qrels_file, topics)
-
-    jig = EvalJig(min_rel_level=args.min_rel_level, max_depth=args.max_depth)
-    jig.add_op(NumRetrieved())
-    jig.add_op(NumRel())
-    jig.add_op(NumRelRet())
-    jig.add_op(Unjudged())
-    jig.add_op(RecipRankPrime())
-    jig.add_op(APPrime())
-    jig.add_op(NDCGPrime())
-    jig.add_op(RBPPrime(p=0.8))
-    jig.add_op(Abstention())
-    jig.add_op(Noise())
-    jig.add_op(RBO(p=0.8))
-
-    with open(args.input_file) as f:
-        metadata_json = f.readline()
-        metadata = RunMetadata.model_validate_json(metadata_json)
-        jig.runtag = metadata.runtag
-
-        for line in f:
-            topic_results = TopicResults.model_validate_json(line)
-            tid = topic_results.topic
-            if tid not in qrels.qrels:
-                log.debug(f'{tid}: no judgments, skipping')
-                continue
-            log.info(f'Scoring topic {tid}')
-            measured = defaultdict(set)
-
-            for day in dates:
-                if day not in topic_results.results:
-                    sys.exit(f'Error: run is missing day {day} for topic {tid}')
-                # Check doc rankings of questions the system returned docs for
-                # There may be zero relevant documents
-                # Note that a valid run must have a value for every day in the
-                # collection.
-                q_results = topic_results.results[day]
-                eval_qids = qrels.eval_qids(tid, day)
-                for qres in q_results:
-                    if qres.qid in eval_qids:
-                        measured[day].add(qres.qid)
-                        doc_ranking = [hit.doc_id for hit in 
-                                       sorted(qres.doc_ranking, 
-                                              key=lambda x: x.score, 
-                                              reverse=True)]
-                        jig.compute(tid, day, qres.qid, doc_ranking,
-                                    qrels.get_qid(tid, day, qres.qid))
-                    else:
-                        log.debug(f'{tid} {day} {qres.qid}: returned by run but '
-                                  f'not an evaluation point, ignoring')
-                # Check its question ranking, which may be empty
-                if day in qrels.qranking[tid]:
-                    jig.zero_qranking(tid, day)
-                    question_ranking = [q_res.qid for q_res in
-                                        sorted(topic_results.results[day],
-                                               key=lambda q: q.question_rank)]
-                    qrel_ranking = qrels.get_qranking(tid, day)
-                    jig.compute_qranking(tid, day, question_ranking, qrel_ranking)
-
-                # Score evaluation points the run did not return as empty rankings.
-                for qid in eval_qids:
-                    if qid in measured[day]:
-                        continue
-                    measured[day].add(qid)
-                    jig.compute(tid, day, qid, [],
-                                qrels.get_qid(tid, day, qid))
+    metadata, topic_results_list = load_run_file(args.input_file)
+    jig = evaluate_run(
+        qrels,
+        metadata,
+        topic_results_list,
+        min_rel_level=args.min_rel_level,
+        max_depth=args.max_depth,
+        logger=log,
+    )
 
     jig.print_scores()
     jig.print_day_means()
