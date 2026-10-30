@@ -13,7 +13,9 @@ classifiers = [
 ]
 dependencies = [
   "pydantic",
-  "peewee"
+  "peewee",
+  "fastapi",
+  "uvicorn"
 ]
 
 license.file = "LICENSE"
