@@ -94,6 +94,27 @@ The counts `num_ret`, `num_rel`, `num_rel_ret`, and `unjudged` are reported for
 every question-day, and `rbo(p=0.8)` scores the per-day question ranking against
 the reference ranking in the qrels.
 
+## Interactive Evaluation Explorer
+
+To explore and compare runs interactively in a web browser, first index the document collection into a SQLite database (optional, enables full-text document inspection):
+
+```
+python3 -m cdet_scorer.index_corpus -i eng-docs.jsonl.gz -o eng-docs.sqlite
+```
+
+Then launch the explorer server with your qrels, topics, and one or more run files:
+
+```
+python3 -m cdet_scorer.explorer \
+  --qrels sample-data/qrels \
+  --topics sample-data/test-topics-all-docs.jsonl \
+  --corpus-db eng-docs.sqlite \
+  --runs sample-data/idaccs-csplx-z290 sample-data/bm25-qwen-splade \
+  --port 8000
+```
+
+Open `http://127.0.0.1:8000` in your browser. See [docs/explorer-design.md](./docs/explorer-design.md) for details on the views and analytical breakdowns.
+
 ## Tracing a score (`-vv`)
 
 Run with `-vv` to see, for every evaluation point, one line showing how its
