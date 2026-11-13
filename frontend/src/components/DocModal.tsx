@@ -46,9 +46,7 @@ export function DocModal({ docId, onClose }: DocModalProps) {
       >
         <div className="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between">
           <div>
-            <span className="text-xs uppercase tracking-wider text-indigo-400 font-bold">
-              Document Inspector
-            </span>
+            <span className="text-xs text-slate-400">Document</span>
             <h4 className="font-mono text-sm font-semibold mt-0.5">{docId}</h4>
           </div>
           <button

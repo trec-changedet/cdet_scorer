@@ -6,6 +6,7 @@ import type {
   TopicOverviewItem,
 } from "../types/api";
 import { fmtFloat } from "../utils/format";
+import { STATE_DEFINITIONS } from "./Badges";
 
 interface CalendarTabProps {
   runs: string[];
@@ -70,14 +71,14 @@ export function CalendarTab({
             </div>
 
             <div className="flex items-center gap-1.5">
-              <label className="font-semibold text-slate-700">View Mode:</label>
+              <label className="font-semibold text-slate-700">View:</label>
               <select
                 value={viewMode}
                 onChange={(e) => setViewMode(e.target.value as "single" | "diff")}
                 className="border border-slate-300 rounded px-2.5 py-1.5 bg-white"
               >
-                <option value="single">Single Run Inspection</option>
-                <option value="diff">Run A vs. Run B Diff</option>
+                <option value="single">Single Run</option>
+                <option value="diff">Diff (A − B)</option>
               </select>
             </div>
 
@@ -114,11 +115,12 @@ export function CalendarTab({
             )}
 
             <div className="flex items-center gap-1.5">
-              <label className="font-semibold text-slate-700">Prime Metric:</label>
+              <label className="font-semibold text-slate-700">Metric:</label>
               <select
                 value={primeMetric}
                 onChange={(e) => setPrimeMetric(e.target.value)}
                 className="border border-slate-300 rounded px-2.5 py-1.5 bg-white"
+                title="Prime metric displayed in answerable question-day cells (num_rel > 0)"
               >
                 <option value="ndcg'">ndcg&apos;</option>
                 <option value="rbp'(p=0.8)">rbp&apos;(p=0.8)</option>
@@ -127,7 +129,10 @@ export function CalendarTab({
               </select>
             </div>
 
-            <label className="inline-flex items-center gap-1.5 cursor-pointer select-none text-slate-700 font-medium ml-2">
+            <label
+              className="inline-flex items-center gap-1.5 cursor-pointer select-none text-slate-700 font-medium ml-2"
+              title="Hide assessed days where all questions have num_rel = 0 and num_ret = 0 across loaded runs"
+            >
               <input
                 type="checkbox"
                 checked={activeDaysOnly}
@@ -139,25 +144,40 @@ export function CalendarTab({
           </div>
 
           <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
-            <span className="inline-flex items-center gap-1">
+            <span
+              className="inline-flex items-center gap-1 cursor-help"
+              title={STATE_DEFINITIONS.event_hit}
+            >
               <span className="w-3.5 h-3.5 rounded bg-emerald-600 border-2 border-slate-900 inline-block" />{" "}
               Event Hit
             </span>
-            <span className="inline-flex items-center gap-1">
+            <span
+              className="inline-flex items-center gap-1 cursor-help"
+              title={STATE_DEFINITIONS.zero_hit_trigger}
+            >
               <span className="w-3.5 h-3.5 rounded bg-amber-300 border-2 border-slate-900 inline-block" />{" "}
               Zero-Hit Trigger
             </span>
-            <span className="inline-flex items-center gap-1">
+            <span
+              className="inline-flex items-center gap-1 cursor-help"
+              title={STATE_DEFINITIONS.missed_event}
+            >
               <span className="w-3.5 h-3.5 rounded bg-rose-200 border-2 border-slate-900 inline-block" />{" "}
-              Missed Event (0.0)
+              Missed Event
             </span>
-            <span className="inline-flex items-center gap-1">
+            <span
+              className="inline-flex items-center gap-1 cursor-help"
+              title={STATE_DEFINITIONS.false_alarm}
+            >
               <span className="w-3.5 h-3.5 rounded bg-purple-200 border border-purple-400 inline-block" />{" "}
               False Alarm (!noise)
             </span>
-            <span className="inline-flex items-center gap-1">
+            <span
+              className="inline-flex items-center gap-1 cursor-help"
+              title={STATE_DEFINITIONS.true_abstention}
+            >
               <span className="w-3.5 h-3.5 rounded bg-slate-100 border border-slate-200 inline-block" />{" "}
-              True Abstention
+              Abstention
             </span>
           </div>
         </div>
@@ -175,12 +195,8 @@ export function CalendarTab({
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between text-xs">
             <span className="font-medium text-slate-700">
-              {calendarData.tid} ({calendarData.label}) • Showing{" "}
+              {calendarData.tid} ({calendarData.label}) •{" "}
               {calendarData.days.length} days × {calendarData.questions.length} questions
-            </span>
-            <span className="text-slate-500">
-              Click any <code className="text-slate-700">(Question, Day)</code> cell to
-              inspect ranked documents and judgments.
             </span>
           </div>
 

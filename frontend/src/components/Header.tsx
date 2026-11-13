@@ -34,9 +34,9 @@ export function Header({
     : "Loading...";
 
   const tabs: { id: TabName; label: string }[] = [
-    { id: "overview", label: "1. Leaderboard & Trade-Offs" },
-    { id: "topics", label: "2. Topic & Question Breakdown" },
-    { id: "calendar", label: "3. Topic Event Calendar" },
+    { id: "overview", label: "Overview" },
+    { id: "topics", label: "Topics" },
+    { id: "calendar", label: "Calendar" },
   ];
 
   return (
@@ -71,7 +71,10 @@ export function Header({
         </nav>
 
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <div className="flex items-center gap-1.5">
+          <div
+            className="flex items-center gap-1.5"
+            title="Aggregation level for overall means: Micro averages across all (topic, day, question) points; Macro averages equally across topics, questions, or days."
+          >
             <label className="text-slate-400 font-medium">Rollup:</label>
             <select
               value={rollup}
@@ -79,13 +82,16 @@ export function Header({
               className="bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
             >
               <option value="micro">Micro (all all all)</option>
-              <option value="macro_topic">Macro by Topic</option>
-              <option value="macro_question">Macro by Question</option>
-              <option value="macro_day">Macro by Day</option>
+              <option value="macro_topic">Macro (topic)</option>
+              <option value="macro_question">Macro (question)</option>
+              <option value="macro_day">Macro (day)</option>
             </select>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div
+            className="flex items-center gap-1.5"
+            title="Minimum judgment level treated as relevant when computing scores."
+          >
             <label className="text-slate-400 font-medium">Min Rel:</label>
             <select
               value={minRelLevel}
@@ -100,7 +106,10 @@ export function Header({
             </select>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div
+            className="flex items-center gap-1.5"
+            title="Maximum ranking depth M evaluated per (topic, day, question)."
+          >
             <label className="text-slate-400 font-medium">Max Depth:</label>
             <input
               type="number"

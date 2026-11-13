@@ -152,33 +152,30 @@ export function TopicsTab({
           </div>
 
           <div className="flex items-center gap-1.5">
-            <label className="font-semibold text-slate-700">Sort by:</label>
+            <label className="font-semibold text-slate-700">Sort:</label>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortByOption)}
               className="border border-slate-300 rounded px-2.5 py-1 bg-white"
             >
               <option value="tid">Topic ID</option>
-              <option value="delta_desc">Delta (A − B) High → Low</option>
-              <option value="delta_abs">Largest Absolute Diff |A − B|</option>
-              <option value="run_a_desc">Run A Score High → Low</option>
-              <option value="num_rel_desc">Total Relevant Docs High → Low</option>
+              <option value="delta_desc">Delta (A − B)</option>
+              <option value="delta_abs">|A − B|</option>
+              <option value="run_a_desc">Run A score</option>
+              <option value="num_rel_desc">num_rel</option>
             </select>
           </div>
-        </div>
-        <div className="text-xs text-slate-500">
-          Click any topic row to inspect its per-question breakdown or jump to its Event Calendar.
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-5 bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-          <h3 className="text-sm font-semibold text-slate-800 mb-1">
-            Per-Topic Comparison &amp; Delta (Run A − Run B)
+          <h3
+            className="text-sm font-semibold text-slate-800 mb-2 cursor-help"
+            title="Per-topic score difference (Run A minus Run B) for the selected metric. Click a bar to select that topic."
+          >
+            Topic Delta ({runA} − {runB})
           </h3>
-          <p className="text-xs text-slate-500 mb-2">
-            Click a bar to select that topic below.
-          </p>
           <PlotlyChart
             data={deltaPlotSpec.traces}
             layout={deltaPlotSpec.layout}
@@ -191,25 +188,53 @@ export function TopicsTab({
 
         <div className="lg:col-span-7 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-800">Topics Summary Table</h3>
+            <h3 className="text-sm font-semibold text-slate-800">Topics</h3>
             <span className="text-xs text-slate-500">{sortedRows.length} topics</span>
           </div>
           <div className="overflow-x-auto max-h-[560px]">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="sticky top-0 bg-slate-100 text-slate-600 border-b border-slate-200 z-10">
                 <tr>
-                  <th className="py-2 px-3">Topic</th>
-                  <th className="py-2 px-2 text-right">Days</th>
-                  <th className="py-2 px-2 text-right">Qs</th>
-                  <th className="py-2 px-2 text-right">num_rel</th>
-                  <th className="py-2 px-2 text-right bg-indigo-50/70">
+                  <th className="py-2 px-3" title="Topic ID and title">
+                    Topic
+                  </th>
+                  <th
+                    className="py-2 px-2 text-right cursor-help"
+                    title="Number of assessed days in qrels for this topic"
+                  >
+                    Days
+                  </th>
+                  <th
+                    className="py-2 px-2 text-right cursor-help"
+                    title="Number of questions defined for this topic"
+                  >
+                    Qs
+                  </th>
+                  <th
+                    className="py-2 px-2 text-right cursor-help"
+                    title="Total relevant document judgments across all assessed days and questions in this topic"
+                  >
+                    num_rel
+                  </th>
+                  <th
+                    className="py-2 px-2 text-right bg-indigo-50/70 cursor-help"
+                    title={`Mean ${metric} for ${runA} on this topic`}
+                  >
                     {runA} ({metric})
                   </th>
-                  <th className="py-2 px-2 text-right bg-amber-50/70">
+                  <th
+                    className="py-2 px-2 text-right bg-amber-50/70 cursor-help"
+                    title={`Mean ${metric} for ${runB} on this topic`}
+                  >
                     {runB} ({metric})
                   </th>
-                  <th className="py-2 px-2 text-right">Delta (A−B)</th>
-                  <th className="py-2 px-3 text-right">Action</th>
+                  <th
+                    className="py-2 px-2 text-right cursor-help"
+                    title={`Difference in ${metric} (${runA} minus ${runB})`}
+                  >
+                    Delta (A−B)
+                  </th>
+                  <th className="py-2 px-3 text-right" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -297,7 +322,7 @@ export function TopicsTab({
               onClick={() => onJumpToCalendar(topicDetail.tid)}
               className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow-sm"
             >
-              Open in Event Calendar →
+              Calendar →
             </button>
           </div>
 
@@ -306,14 +331,19 @@ export function TopicsTab({
               <thead>
                 <tr className="bg-slate-100 text-slate-600 border-b border-slate-200">
                   <th className="py-2 px-3">QID</th>
-                  <th className="py-2 px-3">Question Text</th>
+                  <th className="py-2 px-3">Question</th>
                   <th
-                    className="py-2 px-2 text-right"
-                    title="Number of assessed days where this question had >=1 relevant doc"
+                    className="py-2 px-2 text-right cursor-help"
+                    title="Number of assessed days where this question had at least one relevant document (num_rel > 0)"
                   >
                     Event Days
                   </th>
-                  <th className="py-2 px-2 text-right">num_rel</th>
+                  <th
+                    className="py-2 px-2 text-right cursor-help"
+                    title="Total relevant document judgments for this question across all assessed days"
+                  >
+                    num_rel
+                  </th>
                   <th
                     className="py-2 px-2 text-right bg-indigo-50/60 border-l border-slate-200"
                     colSpan={4}
@@ -329,18 +359,54 @@ export function TopicsTab({
                 </tr>
                 <tr className="bg-slate-50 text-slate-500 border-b border-slate-200 text-[11px]">
                   <th colSpan={4} />
-                  <th className="py-1 px-2 text-right border-l border-slate-200">
+                  <th
+                    className="py-1 px-2 text-right border-l border-slate-200 cursor-help"
+                    title="Mean NDCG' over answerable days for this question"
+                  >
                     ndcg&apos;
                   </th>
-                  <th className="py-1 px-2 text-right">rel_ret / ret</th>
-                  <th className="py-1 px-2 text-right">abst</th>
-                  <th className="py-1 px-2 text-right">noise</th>
-                  <th className="py-1 px-2 text-right border-l border-slate-200">
+                  <th
+                    className="py-1 px-2 text-right cursor-help"
+                    title="Relevant documents retrieved / total documents returned for this question"
+                  >
+                    rel_ret / ret
+                  </th>
+                  <th
+                    className="py-1 px-2 text-right cursor-help"
+                    title="Mean abstention rate on nil-answer days for this question"
+                  >
+                    abst
+                  </th>
+                  <th
+                    className="py-1 px-2 text-right cursor-help"
+                    title="Mean noise (spurious documents per nil-answer day) for this question"
+                  >
+                    noise
+                  </th>
+                  <th
+                    className="py-1 px-2 text-right border-l border-slate-200 cursor-help"
+                    title="Mean NDCG' over answerable days for this question"
+                  >
                     ndcg&apos;
                   </th>
-                  <th className="py-1 px-2 text-right">rel_ret / ret</th>
-                  <th className="py-1 px-2 text-right">abst</th>
-                  <th className="py-1 px-2 text-right">noise</th>
+                  <th
+                    className="py-1 px-2 text-right cursor-help"
+                    title="Relevant documents retrieved / total documents returned for this question"
+                  >
+                    rel_ret / ret
+                  </th>
+                  <th
+                    className="py-1 px-2 text-right cursor-help"
+                    title="Mean abstention rate on nil-answer days for this question"
+                  >
+                    abst
+                  </th>
+                  <th
+                    className="py-1 px-2 text-right cursor-help"
+                    title="Mean noise (spurious documents per nil-answer day) for this question"
+                  >
+                    noise
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">

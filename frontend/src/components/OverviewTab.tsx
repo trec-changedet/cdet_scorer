@@ -360,12 +360,7 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
         (m) => `<b>${m.badge} ${m.run.runtag}</b> (${m.run.metadata.run_type})`
       );
       if (isMulti) {
-        hoverLines.unshift(
-          `<b>${g.members.length} runs share this exact point:</b>`
-        );
-      }
-      if (g.isPareto) {
-        hoverLines.push(`<span style="color:#4f46e5">★ On Pareto frontier</span>`);
+        hoverLines.unshift(`${g.members.length} runs at this point:`);
       }
 
       // If multiple runs share this exact point, draw an outer halo ring first
@@ -420,10 +415,7 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
     const layout: Record<string, unknown> = {
       margin: { t: 24, r: 28, b: 48, l: 58 },
       xaxis: {
-        title:
-          paretoX === "abstention"
-            ? "Abstention Rate (Quiet-Day Specificity →)"
-            : "Mean Spurious Docs / Quiet Day (← Lower Noise Better)",
+        title: paretoX,
         range: xRange,
         zeroline: false,
       },
@@ -455,20 +447,23 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
     hoveredRuntag,
   ]);
 
-  const behavioralSpec = useMemo(() => {
+  const behaviorPanels = useMemo(() => {
     const activeList = visibleRuns.length > 0 ? visibleRuns : indexedRuns;
-    const runNames = activeList.map((ir) => `${ir.badge} ${ir.run.runtag}`);
-    const colors = activeList.map((ir) => ir.color);
-
-    const panels = [
+    return [
       {
-        title: "Event Hit Rate (num_rel_ret > 0)",
+        title: "Event Hit Rate",
+        group: "Answerable (num_rel > 0)",
+        description:
+          "Percentage of answerable question-days (num_rel > 0) where the run retrieved at least one relevant document (num_rel_ret > 0).",
         vals: activeList.map((ir) => (ir.run.behavioral.event_hit_rate ?? 0) * 100),
         suffix: "%",
         range: [0, 100] as [number, number] | null,
       },
       {
         title: "Zero-Hit Trigger Rate",
+        group: "Answerable (num_rel > 0)",
+        description:
+          "Percentage of answerable question-days (num_rel > 0) where the run returned documents (num_ret > 0) but none were relevant (num_rel_ret = 0).",
         vals: activeList.map(
           (ir) => (ir.run.behavioral.zero_hit_trigger_rate ?? 0) * 100
         ),
@@ -476,7 +471,10 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
         range: [0, 100] as [number, number] | null,
       },
       {
-        title: "Missed Event Rate (Silent)",
+        title: "Missed Event Rate",
+        group: "Answerable (num_rel > 0)",
+        description:
+          "Percentage of answerable question-days (num_rel > 0) where the run returned no documents (num_ret = 0).",
         vals: activeList.map(
           (ir) => (ir.run.behavioral.missed_event_rate ?? 0) * 100
         ),
@@ -484,7 +482,10 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
         range: [0, 100] as [number, number] | null,
       },
       {
-        title: "False Alarm Rate (1 − abstention)",
+        title: "False Alarm Rate",
+        group: "Nil-Answer (num_rel = 0)",
+        description:
+          "Percentage of nil-answer question-days (num_rel = 0) where the run returned one or more documents (num_ret > 0); equal to 1 − abstention.",
         vals: activeList.map(
           (ir) => (ir.run.behavioral.false_alarm_rate ?? 0) * 100
         ),
@@ -492,13 +493,19 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
         range: [0, 100] as [number, number] | null,
       },
       {
-        title: "Mean Noise (Docs / Nil Q-Day)",
+        title: "Mean Noise",
+        group: "Nil-Answer (num_rel = 0)",
+        description:
+          "Mean number of documents returned per nil-answer question-day (num_rel = 0).",
         vals: activeList.map((ir) => Number(ir.run.metrics.noise ?? 0)),
         suffix: "",
         range: null,
       },
       {
         title: "Unjudged % of Noise",
+        group: "Nil-Answer (num_rel = 0)",
+        description:
+          "Percentage of documents returned on nil-answer question-days (num_rel = 0) that were unjudged rather than judged not-relevant.",
         vals: activeList.map(
           (ir) => (ir.run.behavioral.unjudged_fraction_of_noise ?? 0) * 100
         ),
@@ -506,8 +513,14 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
         range: [0, 100] as [number, number] | null,
       },
     ];
+  }, [visibleRuns, indexedRuns]);
 
-    const traces = panels.map((p, idx) => ({
+  const behavioralSpec = useMemo(() => {
+    const activeList = visibleRuns.length > 0 ? visibleRuns : indexedRuns;
+    const runNames = activeList.map((ir) => `${ir.badge} ${ir.run.runtag}`);
+    const colors = activeList.map((ir) => ir.color);
+
+    const traces = behaviorPanels.map((p, idx) => ({
       type: "bar",
       orientation: "h",
       y: runNames,
@@ -519,7 +532,7 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
         p.suffix === "%" ? `${v.toFixed(1)}%` : v.toFixed(3)
       ),
       textposition: "auto",
-      hovertemplate: `<b>%{y}</b>: %{text}<extra>${p.title}</extra>`,
+      hovertemplate: `<b>%{y}</b>: %{text}<br><span style="font-size:11px">${p.description}</span><extra>${p.title}</extra>`,
       showlegend: false,
     }));
 
@@ -533,8 +546,10 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
       margin: { t: 28, r: 20, b: 30, l: 155 },
       paper_bgcolor: "transparent",
       plot_bgcolor: "#f8fafc",
-      annotations: panels.map((p, idx) => ({
+      annotations: behaviorPanels.map((p, idx) => ({
         text: `<b>${p.title}</b>`,
+        hovertext: p.description,
+        captureevents: true,
         font: { size: 11, color: "#334155" },
         xref: `x${idx + 1} domain`,
         yref: `y${idx + 1} domain`,
@@ -544,7 +559,7 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
       })),
     };
 
-    panels.forEach((p, idx) => {
+    behaviorPanels.forEach((p, idx) => {
       const axNum = idx + 1;
       layout[`xaxis${axNum}`] = {
         range: p.range,
@@ -560,24 +575,15 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
     });
 
     return { traces, layout };
-  }, [visibleRuns, indexedRuns]);
+  }, [behaviorPanels, visibleRuns, indexedRuns]);
 
   const chartMinHeight = Math.max(380, visibleRuns.length * 32 + 120);
 
   return (
     <section className="space-y-6">
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-slate-50/60">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-800">System Leaderboard</h2>
-            <p className="text-xs text-slate-500">
-              Separating <strong>Answerable-Day Ranking Quality</strong> (
-              <code className="text-indigo-600">num_rel &gt; 0</code>) from{" "}
-              <strong>Nil-Answer Quiet-Day Discipline</strong> (
-              <code className="text-emerald-600">num_rel == 0</code>). Toggle checkboxes
-              or hover a row to filter and highlight runs in the charts below.
-            </p>
-          </div>
+        <div className="px-5 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-slate-50/60">
+          <h2 className="text-sm font-semibold text-slate-800">Runs</h2>
           <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
             {hiddenRuntags.size > 0 && (
               <button
@@ -585,17 +591,20 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
                 onClick={() => setHiddenRuntags(new Set())}
                 className="text-indigo-600 hover:text-indigo-800 font-medium underline"
               >
-                Show all {runs.length} runs ({visibleRuns.length} plotted)
+                Show all {runs.length} runs ({visibleRuns.length} shown)
               </button>
             )}
-            <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+            <label
+              className="inline-flex items-center gap-1.5 cursor-pointer select-none"
+              title="Under Micro rollup, ndcg' = Trigger Rate × Active ndcg'."
+            >
               <input
                 type="checkbox"
                 checked={showActivePrime}
                 onChange={(e) => setShowActivePrime(e.target.checked)}
                 className="rounded text-indigo-600"
               />
-              <span>Show Trigger Rate &amp; Active Prime</span>
+              <span>Show Trigger Rate &amp; Active ndcg&apos;</span>
             </label>
           </div>
         </div>
@@ -604,13 +613,12 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-100/80 text-slate-600 border-b border-slate-200 font-semibold">
-                <th className="py-2.5 pl-3 pr-1 w-8 text-center" title="Plot run in charts below">
+                <th className="py-2.5 pl-3 pr-1 w-8 text-center" title="Include or exclude run from charts">
                   <input
                     type="checkbox"
                     checked={hiddenRuntags.size === 0}
                     onChange={() => {
                       if (hiddenRuntags.size === 0) {
-                        // Keep at least first 2 visible if user unchecks all
                         setHiddenRuntags(
                           new Set(runs.slice(2).map((r) => r.runtag))
                         );
@@ -619,59 +627,103 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
                       }
                     }}
                     className="rounded text-indigo-600"
-                    title="Toggle all runs"
+                    title="Toggle all runs in charts"
                   />
                 </th>
-                <th className="py-2.5 px-2">Run</th>
-                <th className="py-2.5 px-2">Type</th>
+                <th className="py-2.5 px-2" title="Run identifier and declared models">
+                  Run
+                </th>
+                <th className="py-2.5 px-2" title="Declared run type from run metadata">
+                  Type
+                </th>
                 <th
-                  className="py-2.5 px-2 text-right bg-indigo-50/60 border-l border-slate-200"
-                  title="Official NDCG' across all answerable question-days"
+                  className="py-2.5 px-2 text-right bg-indigo-50/60 border-l border-slate-200 cursor-help"
+                  title="NDCG' (truncated-ranking nDCG) averaged over answerable question-days (num_rel > 0)."
                 >
                   ndcg&apos;
                 </th>
                 {showActivePrime && (
                   <>
                     <th
-                      className="py-2.5 px-2 text-right bg-indigo-50/60"
-                      title="Fraction of answerable question-days where the system returned >=1 document"
+                      className="py-2.5 px-2 text-right bg-indigo-50/60 cursor-help"
+                      title="Trigger Rate: percentage of answerable question-days (num_rel > 0) where the run returned at least one document (num_ret > 0)."
                     >
                       Trig %
                     </th>
                     <th
-                      className="py-2.5 px-2 text-right bg-indigo-50/60"
-                      title="Conditional NDCG' on answerable question-days where the system returned >=1 document"
+                      className="py-2.5 px-2 text-right bg-indigo-50/60 cursor-help"
+                      title="Active NDCG': mean NDCG' restricted to answerable question-days where the run returned at least one document (num_rel > 0 and num_ret > 0)."
                     >
                       Active ndcg&apos;
                     </th>
                   </>
                 )}
-                <th className="py-2.5 px-2 text-right bg-indigo-50/60">rbp&apos;(0.8)</th>
-                <th className="py-2.5 px-2 text-right bg-indigo-50/60">ap&apos;</th>
-                <th className="py-2.5 px-2 text-right bg-indigo-50/60">recip_rank&apos;</th>
                 <th
-                  className="py-2.5 px-2 text-right bg-emerald-50/60 border-l border-slate-200"
-                  title="Fraction of nil-answer question-days where system returned 0 docs"
+                  className="py-2.5 px-2 text-right bg-indigo-50/60 cursor-help"
+                  title="RBP'(p=0.8) (truncated-ranking rank-biased precision) averaged over answerable question-days (num_rel > 0)."
+                >
+                  rbp&apos;(0.8)
+                </th>
+                <th
+                  className="py-2.5 px-2 text-right bg-indigo-50/60 cursor-help"
+                  title="AP' (truncated-ranking average precision) averaged over answerable question-days (num_rel > 0)."
+                >
+                  ap&apos;
+                </th>
+                <th
+                  className="py-2.5 px-2 text-right bg-indigo-50/60 cursor-help"
+                  title="RR' (truncated-ranking reciprocal rank) averaged over answerable question-days (num_rel > 0)."
+                >
+                  recip_rank&apos;
+                </th>
+                <th
+                  className="py-2.5 px-2 text-right bg-emerald-50/60 border-l border-slate-200 cursor-help"
+                  title="Abstention: fraction of nil-answer question-days (num_rel = 0) where the run returned no documents (num_ret = 0)."
                 >
                   abstention
                 </th>
                 <th
-                  className="py-2.5 px-2 text-right bg-emerald-50/60"
-                  title="Mean spurious docs per nil-answer question-day"
+                  className="py-2.5 px-2 text-right bg-emerald-50/60 cursor-help"
+                  title="Noise: mean number of documents returned per nil-answer question-day (num_rel = 0)."
                 >
                   noise
                 </th>
                 <th
-                  className="py-2.5 px-2 text-right bg-amber-50/60 border-l border-slate-200"
-                  title="Question ranking RBO(p=0.8)"
+                  className="py-2.5 px-2 text-right bg-amber-50/60 border-l border-slate-200 cursor-help"
+                  title="RBO(p=0.8): rank-biased overlap between the system's daily question ranking and the reference qranking in qrels."
                 >
                   rbo(0.8)
                 </th>
-                <th className="py-2.5 px-2 text-right border-l border-slate-200">num_ret</th>
-                <th className="py-2.5 px-2 text-right">num_rel</th>
-                <th className="py-2.5 px-2 text-right">num_rel_ret</th>
-                <th className="py-2.5 px-2 text-right">unjudged</th>
-                <th className="py-2.5 px-3 text-right">unjudged %</th>
+                <th
+                  className="py-2.5 px-2 text-right border-l border-slate-200 cursor-help"
+                  title="Total documents returned across all scored question-days."
+                >
+                  num_ret
+                </th>
+                <th
+                  className="py-2.5 px-2 text-right cursor-help"
+                  title="Total relevant document judgments across all scored question-days."
+                >
+                  num_rel
+                </th>
+                <th
+                  className="py-2.5 px-2 text-right cursor-help"
+                  title="Total relevant documents retrieved across all scored question-days."
+                >
+                  num_rel_ret
+                </th>
+                <th
+                  className="py-2.5 px-2 text-right cursor-help"
+                  title="Total retrieved documents without a relevance judgment in qrels."
+                >
+                  unjudged
+                </th>
+                <th
+                  className="py-2.5 px-3 text-right cursor-help"
+                  title="Fraction of retrieved documents that are unjudged (unjudged / num_ret)."
+                >
+                  unjudged %
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -786,22 +838,19 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-5 bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col">
-          <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-800">
-                Silence vs. Effectiveness Trade-Off
-              </h3>
-              <p className="text-xs text-slate-500">
-                {paretoX === "abstention"
-                  ? "Top-right = high effectiveness on event days + high silence on quiet days."
-                  : "Top-left = high effectiveness on event days + low noise on quiet days."}
-              </p>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <h3
+              className="text-sm font-semibold text-slate-800 cursor-help"
+              title="Compares answerable-day ranking effectiveness (Y-axis, num_rel > 0) against nil-answer-day silence or noise (X-axis, num_rel = 0)."
+            >
+              Silence vs. Effectiveness
+            </h3>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <select
                 value={paretoY}
                 onChange={(e) => setParetoY(e.target.value)}
                 className="border border-slate-300 rounded px-2 py-1 bg-white"
+                title="Y-axis metric (evaluated on answerable question-days, num_rel > 0)"
               >
                 <option value="ndcg'">Y: ndcg&apos;</option>
                 <option value="rbp'(p=0.8)">Y: rbp&apos;(p=0.8)</option>
@@ -815,6 +864,7 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
                   setParetoX(e.target.value as "abstention" | "noise")
                 }
                 className="border border-slate-300 rounded px-2 py-1 bg-white"
+                title="X-axis metric (evaluated on nil-answer question-days, num_rel = 0)"
               >
                 <option value="abstention">X: abstention</option>
                 <option value="noise">X: noise</option>
@@ -823,7 +873,10 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-2 pb-2 border-b border-slate-100 text-xs text-slate-600">
-            <label className="inline-flex items-center gap-1 cursor-pointer select-none">
+            <label
+              className="inline-flex items-center gap-1 cursor-pointer select-none"
+              title="Connect runs that are not dominated on both axes (higher Y and higher abstention, or higher Y and lower noise)."
+            >
               <input
                 type="checkbox"
                 checked={showFrontier}
@@ -832,7 +885,10 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
               />
               <span>Pareto frontier</span>
             </label>
-            <label className="inline-flex items-center gap-1 cursor-pointer select-none">
+            <label
+              className="inline-flex items-center gap-1 cursor-pointer select-none"
+              title="Fix axes to [0, 1] instead of zooming to the range of visible runs."
+            >
               <input
                 type="checkbox"
                 checked={fullScale}
@@ -841,7 +897,10 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
               />
               <span>Full [0, 1] scale</span>
             </label>
-            <div className="inline-flex items-center gap-1">
+            <div
+              className="inline-flex items-center gap-1"
+              title="Overlay per-topic variation as 25th–75th percentile crosshairs or individual topic points for a single run."
+            >
               <span className="text-slate-500">Topics:</span>
               <select
                 value={topicOverlay}
@@ -851,8 +910,8 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
                 className="border border-slate-300 rounded px-1.5 py-0.5 bg-white text-xs"
               >
                 <option value="none">Off</option>
-                <option value="iqr">IQR crosshairs (25–75%)</option>
-                <option value="single_run">Single run dots</option>
+                <option value="iqr">IQR (25–75%)</option>
+                <option value="single_run">Single run</option>
               </select>
               {topicOverlay === "single_run" && (
                 <select
@@ -876,18 +935,20 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
             className="w-full flex-1 min-h-[340px]"
           />
 
-          {/* Compact Run & Shared-Coordinate Key */}
           <div className="mt-2 pt-2 border-t border-slate-100 space-y-1.5 text-[11px]">
             {collidedGroups.length > 0 && (
-              <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-lg px-2.5 py-1.5 text-slate-700">
-                <div className="font-semibold text-indigo-900 mb-0.5">
-                  Shared Coordinates ({visibleRuns.length} runs → {coordGroups.length} distinct{" "}
+              <div
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700"
+                title="Runs that produce identical (X, Y) values are drawn as a single grouped marker on the chart."
+              >
+                <div className="font-semibold text-slate-700 mb-0.5">
+                  Identical coordinates ({visibleRuns.length} runs at {coordGroups.length}{" "}
                   {coordGroups.length === 1 ? "point" : "points"}):
                 </div>
                 <div className="space-y-0.5">
                   {collidedGroups.map((g) => (
                     <div key={g.key} className="flex flex-wrap items-center gap-1">
-                      <span className="font-mono font-bold text-indigo-700">
+                      <span className="font-mono text-slate-600">
                         ({g.x.toFixed(4)}, {g.y.toFixed(4)}):
                       </span>
                       {g.members.map((m) => (
@@ -931,7 +992,7 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
                       ? "border-slate-800 bg-slate-100 font-semibold"
                       : "border-slate-200 bg-slate-50/70 hover:bg-slate-100 text-slate-700"
                   }`}
-                  title="Hover to highlight on plot; click to show this run's topic dots"
+                  title={`${ir.badge} ${ir.run.runtag} — hover to highlight, click to plot per-topic points`}
                 >
                   <span
                     className="px-1 rounded font-mono text-[10px] font-bold text-white"
@@ -947,17 +1008,24 @@ export function OverviewTab({ runs, topics }: OverviewTabProps) {
         </div>
 
         <div className="lg:col-span-7 bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col">
-          <div className="mb-2">
-            <h3 className="text-sm font-semibold text-slate-800">
-              5-State Behavioral Breakdown (Common 0-Baseline Panels)
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100">
+            <h3
+              className="text-sm font-semibold text-slate-800 cursor-help"
+              title="Breakdown of question-day outcomes across answerable days (num_rel > 0, top row) and nil-answer days (num_rel = 0, bottom row). Hover any metric label or bar for its definition."
+            >
+              Question-Day Breakdown
             </h3>
-            <p className="text-xs text-slate-500">
-              Top row: Answerable question-days (
-              <code className="text-indigo-600">num_rel &gt; 0</code>). Bottom row:
-              Nil-answer question-days (
-              <code className="text-emerald-600">num_rel == 0</code>). Each state has
-              its own 0-baseline axis for direct comparison.
-            </p>
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              {behaviorPanels.map((p) => (
+                <span
+                  key={p.title}
+                  title={`${p.title} (${p.group}): ${p.description}`}
+                  className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 cursor-help"
+                >
+                  {p.title}
+                </span>
+              ))}
+            </div>
           </div>
           <div style={{ minHeight: `${chartMinHeight}px` }} className="w-full flex-1 flex">
             <PlotlyChart

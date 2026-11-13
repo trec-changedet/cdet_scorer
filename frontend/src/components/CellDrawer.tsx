@@ -80,28 +80,73 @@ export function CellDrawer({ selectedCell, onClose, onSelectDoc }: CellDrawerPro
           <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-slate-50">
             <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-700">
-                Evaluation Point Scores Across Runs
+                Scores
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 text-slate-600 bg-slate-50">
                       <th className="py-2 px-3">Run</th>
-                      <th className="py-2 px-2">Behavioral State</th>
-                      <th className="py-2 px-2 text-right">Q-Rank</th>
-                      <th className="py-2 px-2 text-right">num_ret</th>
-                      <th className="py-2 px-2 text-right">num_rel_ret</th>
-                      <th className="py-2 px-2 text-right">unjudged</th>
                       <th
-                        className="py-2 px-2 text-right"
-                        title="Terminal document gain r_t"
+                        className="py-2 px-2 cursor-help"
+                        title="Outcome classification for this (topic, day, question) point"
+                      >
+                        State
+                      </th>
+                      <th
+                        className="py-2 px-2 text-right cursor-help"
+                        title="Rank of this question in the run's daily question ranking"
+                      >
+                        Q-Rank
+                      </th>
+                      <th
+                        className="py-2 px-2 text-right cursor-help"
+                        title="Documents returned for this question-day"
+                      >
+                        num_ret
+                      </th>
+                      <th
+                        className="py-2 px-2 text-right cursor-help"
+                        title="Relevant documents retrieved for this question-day"
+                      >
+                        num_rel_ret
+                      </th>
+                      <th
+                        className="py-2 px-2 text-right cursor-help"
+                        title="Unjudged documents returned for this question-day"
+                      >
+                        unjudged
+                      </th>
+                      <th
+                        className="py-2 px-2 text-right cursor-help"
+                        title="Terminal document gain factor r_t used to penalize over-generation in prime measures"
                       >
                         r_t
                       </th>
-                      <th className="py-2 px-2 text-right">ndcg&apos;</th>
-                      <th className="py-2 px-2 text-right">rbp&apos;(0.8)</th>
-                      <th className="py-2 px-2 text-right">ap&apos;</th>
-                      <th className="py-2 px-2 text-right">recip_rank&apos;</th>
+                      <th
+                        className="py-2 px-2 text-right cursor-help"
+                        title="Truncated-ranking nDCG (NDCG')"
+                      >
+                        ndcg&apos;
+                      </th>
+                      <th
+                        className="py-2 px-2 text-right cursor-help"
+                        title="Truncated-ranking rank-biased precision RBP'(p=0.8)"
+                      >
+                        rbp&apos;(0.8)
+                      </th>
+                      <th
+                        className="py-2 px-2 text-right cursor-help"
+                        title="Truncated-ranking average precision (AP')"
+                      >
+                        ap&apos;
+                      </th>
+                      <th
+                        className="py-2 px-2 text-right cursor-help"
+                        title="Truncated-ranking reciprocal rank (RR')"
+                      >
+                        recip_rank&apos;
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -152,11 +197,8 @@ export function CellDrawer({ selectedCell, onClose, onSelectDoc }: CellDrawerPro
 
             {detail.relevant_docs.length > 0 && (
               <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-700 flex items-center justify-between">
-                  <span>Ground-Truth Relevant Documents in Qrels</span>
-                  <span className="text-[11px] font-normal text-slate-500">
-                    Click any document ID to read full text
-                  </span>
+                <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-700">
+                  Relevant Documents (Qrels)
                 </div>
                 <div className="p-3 flex flex-wrap gap-2">
                   {detail.relevant_docs.map((d) => (
