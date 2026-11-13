@@ -6,6 +6,13 @@ export default defineConfig({
   build: {
     outDir: "../src/cdet_scorer/explorer/static",
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        entryFileNames: "assets/index.js",
+        chunkFileNames: "assets/[name].js",
+        assetFileNames: "assets/[name].[ext]",
+      },
+    },
   },
   server: {
     proxy: {
