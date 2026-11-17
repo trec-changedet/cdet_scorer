@@ -10,7 +10,7 @@ Requires Python > 3.12. From the repository root:
 pip install -e .
 ```
 
-This installs the `cdet_scorer` package and its one dependency (`pydantic`).
+This installs the `cdet_scorer` package and its dependencies.
 
 ## Usage
 
